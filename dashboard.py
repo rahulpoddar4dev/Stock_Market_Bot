@@ -7,7 +7,7 @@ import threading
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote_plus, urlparse
 
 import config
 from account_status import load_account_status, save_account_status
@@ -280,21 +280,38 @@ def load_active_account_status(mode: str) -> dict:
     return account_status
 
 
-def fyers_session_status() -> dict:
+_FYERS_STATUS_CACHE = {"status": None, "at": 0.0}
+
+
+def fyers_session_status(force_refresh: bool = False) -> dict:
+    global _FYERS_STATUS_CACHE
+    now = time.time()
+    if not force_refresh and _FYERS_STATUS_CACHE["status"] is not None and (now - _FYERS_STATUS_CACHE["at"]) < 5.0:
+        return _FYERS_STATUS_CACHE["status"]
+
     try:
         fyers_client = try_saved_login(silent=True)
         if not fyers_client:
-            return {"active": False, "message": "Fyers login needed"}
+            res = {"active": False, "message": "Fyers login needed"}
+            _FYERS_STATUS_CACHE = {"status": res, "at": now}
+            return res
         profile = fyers_client.profile()
+        res = {
+            "active": True,
+            "message": "Fyers session active",
+            "user_name": profile.get("user_name"),
+            "user_id": profile.get("user_id"),
+        }
     except Exception as error:
-        return {"active": False, "message": str(error)}
+        res = {"active": False, "message": str(error)}
 
-    return {
-        "active": True,
-        "message": "Fyers session active",
-        "user_name": profile.get("user_name"),
-        "user_id": profile.get("user_id"),
-    }
+    _FYERS_STATUS_CACHE = {"status": res, "at": now}
+    return res
+
+
+def clear_fyers_session_cache():
+    global _FYERS_STATUS_CACHE
+    _FYERS_STATUS_CACHE = {"status": None, "at": 0.0}
 
 
 
@@ -947,15 +964,50 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.send_fyers_login_page(f"Fyers login failed: {login_error}", success=False)
                     return
 
+        if path == "/api/auth-status":
+            session = fyers_session_status()
+            db_conn = False
+            try:
+                from database import is_mongo
+                db_conn = is_mongo()
+            except Exception:
+                pass
+            self.send_json({
+                "active": bool(session.get("active")),
+                "user_name": session.get("user_name"),
+                "user_id": session.get("user_id"),
+                "db_status": {
+                    "engine": "MongoDB Atlas" if db_conn else "SQLite Fallback",
+                    "connected": db_conn,
+                }
+            })
+            return
+
         if path == "/" or path == "/index.html":
+            session = fyers_session_status()
+            if not session.get("active"):
+                self.redirect("/login")
+                return
             self.send_html()
             return
 
+        if path == "/login":
+            session = fyers_session_status()
+            if session.get("active"):
+                self.redirect("/")
+                return
+            self.send_login_html()
+            return
+
         if path == "/api/dashboard":
+            session = fyers_session_status()
+            if not session.get("active"):
+                self.send_json({"authenticated": False, "redirect": "/login"}, status=401)
+                return
             self.send_json(build_dashboard_data())
             return
 
-        if path in {"/fyers/login", "/login"}:
+        if path in {"/fyers/login", "/fyers/oauth"}:
             self.redirect(get_fyers_login_url())
             return
 
@@ -963,7 +1015,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             logout()
             _BROKER_ACCOUNT_CACHE["status"] = None
             _BROKER_ACCOUNT_CACHE["at"] = 0.0
-            self.redirect(get_fyers_login_url())
+            clear_fyers_session_cache()
+            self.redirect("/login?logged_out=true")
             return
 
         if path in {"/callback", "/fyers/callback"}:
@@ -971,6 +1024,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/day":
+            session = fyers_session_status()
+            if not session.get("active"):
+                self.send_json({"authenticated": False, "redirect": "/login"}, status=401)
+                return
             params = parse_qs(parsed.query)
             day = params.get("date", [""])[0]
             if not day:
@@ -1000,19 +1057,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
         error = params.get("message", [""])[0] or params.get("error", [""])[0]
 
         if not auth_code or status not in {"", "ok", "200", "success"}:
-            self.send_fyers_login_page(
-                error or "Fyers login did not return an auth code.",
-                success=False,
-            )
+            err_msg = error or "Fyers login did not return an auth code."
+            self.redirect(f"/login?error={quote_plus(err_msg)}")
             return
 
         try:
             process_auth_code(auth_code)
-        except Exception as login_error:
-            self.send_fyers_login_page(f"Fyers login failed: {login_error}", success=False)
+            clear_fyers_session_cache()
+            self.redirect("/")
             return
-
-        self.send_fyers_login_page("Fyers login successful.", success=True)
+        except Exception as login_error:
+            self.redirect(f"/login?error={quote_plus(str(login_error))}")
+            return
 
     def do_POST(self):
         parsed = urlparse(self.path)
@@ -1030,6 +1086,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     or ""
                 )
                 res = process_auth_code(raw_value)
+                clear_fyers_session_cache()
                 self.send_json(res)
             except Exception as error:
                 self.send_json({"ok": False, "error": str(error)}, status=400)
@@ -1040,8 +1097,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 logout()
                 _BROKER_ACCOUNT_CACHE["status"] = None
                 _BROKER_ACCOUNT_CACHE["at"] = 0.0
-                login_url = get_fyers_login_url()
-                self.send_json({"ok": True, "message": "Logged out successfully", "login_url": login_url})
+                clear_fyers_session_cache()
+                self.send_json({"ok": True, "message": "Logged out successfully", "login_url": "/login?logged_out=true"})
             except Exception as error:
                 self.send_json({"ok": False, "error": str(error)}, status=400)
             return
@@ -1073,7 +1130,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def send_html(self):
         html_path = BASE_DIR / "dashboard.html"
-        body = html_path.read_text()
+        body = html_path.read_text(encoding="utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
+
+    def send_login_html(self):
+        login_path = BASE_DIR / "login.html"
+        body = login_path.read_text(encoding="utf-8") if login_path.exists() else "<h1>Login Required</h1><a href='/fyers/login'>Login with Fyers</a>"
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()

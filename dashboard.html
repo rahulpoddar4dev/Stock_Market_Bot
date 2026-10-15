@@ -1552,8 +1552,16 @@
     async function loadDashboard() {
       try {
         const response = await fetch("/api/dashboard", { cache: "no-store" });
+        if (response.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
+        if (data.authenticated === false) {
+          window.location.href = "/login";
+          return;
+        }
         renderDashboard(data);
       } catch (error) {
         const updatedElem = document.getElementById("updated");
@@ -1637,13 +1645,12 @@
         });
         const result = await res.json();
         if (result.ok) {
-          alert("Logged out from Fyers successfully. Redirecting to login page...");
-          window.location.href = result.login_url || "/fyers/login";
+          window.location.href = result.login_url || "/login?logged_out=true";
         } else {
           alert("Logout failed: " + (result.error || "Unknown error"));
         }
       } catch (e) {
-        alert("Logout error: " + e);
+        window.location.href = "/login?logged_out=true";
       }
     });
 
