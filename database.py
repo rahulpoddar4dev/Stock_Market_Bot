@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sqlite3
+import time
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -26,6 +27,7 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", getattr(config, "MONGO_DB_NAME", "sto
 _MONGO_CLIENT = None
 _MONGO_DB = None
 _MONGO_AVAILABLE = None
+_LAST_MONGO_FAIL_TIME = 0.0
 
 
 def get_bot_env() -> str:
@@ -62,26 +64,31 @@ def now_ist() -> datetime:
 
 
 def get_mongo_db():
-    global _MONGO_CLIENT, _MONGO_DB, _MONGO_AVAILABLE
-    if _MONGO_AVAILABLE is False:
-        return None
+    global _MONGO_CLIENT, _MONGO_DB, _MONGO_AVAILABLE, _LAST_MONGO_FAIL_TIME
     if _MONGO_DB is not None:
         return _MONGO_DB
     if pymongo is None:
         _MONGO_AVAILABLE = False
         return None
 
+    now = time.time()
+    if _MONGO_AVAILABLE is False and (now - _LAST_MONGO_FAIL_TIME) < 15.0:
+        return None
+
     try:
         uri = os.getenv("MONGO_URI", getattr(config, "MONGO_URI", "mongodb://localhost:27017"))
         db_name = os.getenv("MONGO_DB_NAME", getattr(config, "MONGO_DB_NAME", "stock_market_bot"))
-        client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=2500)
+        client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=6000)
         client.admin.command("ping")
         _MONGO_CLIENT = client
         _MONGO_DB = client[db_name]
         _MONGO_AVAILABLE = True
+        print(f"[Database] Successfully connected to MongoDB Atlas database: {db_name}")
         return _MONGO_DB
     except Exception as e:
+        _LAST_MONGO_FAIL_TIME = now
         _MONGO_AVAILABLE = False
+        print(f"[Database] MongoDB connection failed: {e}. Falling back to SQLite/Postgres.")
         return None
 
 

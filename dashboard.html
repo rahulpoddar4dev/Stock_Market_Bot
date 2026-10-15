@@ -766,6 +766,7 @@
       <button id="fyersLoginBtn" class="login-button">Fyers Login</button>
       <button id="fyersLogoutBtn" class="logout-button" style="display: none;">Logout</button>
       <div class="updated" id="fyersSessionStatus">Fyers: checking...</div>
+      <div class="updated" id="dbStatus">DB: checking...</div>
       <button id="todayViewBtn" class="active">Today</button>
       <button id="historyViewBtn">History</button>
       <div class="updated" id="updated">Loading...</div>
@@ -1399,6 +1400,18 @@
       status.textContent = active ? "Fyers: Active" : "Fyers: Login needed";
     }
 
+    function renderDbStatus(dbStatus) {
+      const el = document.getElementById("dbStatus");
+      if (!el) return;
+      if (!dbStatus) {
+        el.textContent = "DB: checking...";
+        return;
+      }
+      el.textContent = `DB: ${dbStatus.engine || "SQLite"}`;
+      el.style.color = dbStatus.connected ? "#0b7a43" : "#b42318";
+      el.title = dbStatus.connected ? "Connected to MongoDB Atlas" : "Connected to SQLite Fallback";
+    }
+
     function renderDateOptions(days) {
       const select = document.getElementById("historyDate");
       days = days || [];
@@ -1494,6 +1507,7 @@
       setText("mode", activeMode);
       renderModeSwitch(data.config);
       renderFyersSession(data.fyers_session);
+      renderDbStatus(data.db_status);
       setText("allFund", fundText);
       setText("allClosed", data.performance.closed_trades);
       setText("allWinRate", `${data.performance.win_rate}%`);

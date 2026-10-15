@@ -881,6 +881,10 @@ def build_dashboard_data() -> dict:
         "no_trade_decisions": no_trade_decisions,
         "ghost_trades": ghost_trades,
         "trade_days": list_trade_days(),
+        "db_status": {
+            "engine": "MongoDB Atlas" if (lambda: (__import__("database").is_mongo()))() else "SQLite Fallback",
+            "connected": bool((lambda: (__import__("database").is_mongo()))()),
+        },
     }
 
 

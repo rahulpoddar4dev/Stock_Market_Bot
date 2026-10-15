@@ -7,4 +7,5 @@ pandas
 requests
 pytest
 psycopg2-binary
-pymongo
+pymongo[srv]>=4.3.0
+dnspython>=2.0.0
