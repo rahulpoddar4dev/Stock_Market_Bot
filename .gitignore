@@ -9,6 +9,7 @@ runtime_settings.json
 __pycache__/
 *.pyc
 *.db
+*.log
 bot_stdout.log
 bot_stderr.log
 
