@@ -1,0 +1,1690 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trading Bot Dashboard</title>
+  <style>
+    :root {
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #18212f;
+      --muted: #667085;
+      --line: #dfe5ef;
+      --soft: #eef2f7;
+      --accent: #2457c5;
+      --buy: #0b7a43;
+      --sell: #b42318;
+      --hold: #806000;
+      --danger: #b42318;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 750;
+      letter-spacing: 0;
+    }
+
+    .title-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .account-line {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      line-height: 1.25;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .updated {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    button, select {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 7px;
+      padding: 8px 11px;
+      cursor: pointer;
+      font-weight: 650;
+      font-size: 14px;
+      min-height: 38px;
+    }
+
+    button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .mode-switch {
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .mode-switch button {
+      border: 0;
+      border-radius: 0;
+      padding: 8px 12px;
+    }
+
+    .mode-switch button.live.active {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .login-button {
+      border-color: #bbf7d0;
+      color: #166534;
+      background: #f0fdf4;
+    }
+
+    .login-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+
+    .logout-button {
+      border-color: #fecaca;
+      color: #991b1b;
+      background: #fef2f2;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 16px 22px 30px;
+    }
+
+    .hidden { display: none !important; }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .summary .card {
+      min-height: 96px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+      font-weight: 650;
+    }
+
+    .value {
+      font-size: 20px;
+      font-weight: 780;
+      overflow-wrap: anywhere;
+      line-height: 1.18;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 750;
+    }
+
+    .subhead {
+      color: var(--muted);
+      font-size: 13px;
+      margin: -6px 0 12px;
+    }
+
+    .analysis-panel {
+      margin-bottom: 12px;
+    }
+
+    .analysis-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .analysis-title {
+      min-width: 0;
+    }
+
+    .analysis-status {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr 1.1fr;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .analysis-block {
+      min-width: 0;
+    }
+
+    .analysis-block-title {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      margin-bottom: 7px;
+      text-transform: uppercase;
+    }
+
+    .analysis-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .analysis-mini-grid.single {
+      grid-template-columns: 1fr;
+    }
+
+    .analysis-item {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px 10px;
+      background: #fff;
+      min-width: 0;
+    }
+
+    .analysis-item.highlight {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+    }
+
+    .analysis-item.warn {
+      border-color: #fed7aa;
+      background: #fff7ed;
+    }
+
+    .analysis-item.good {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .analysis-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .analysis-item strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .analysis-reason {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      margin-top: 8px;
+      overflow-wrap: anywhere;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 125px 1fr;
+      gap: 9px 12px;
+      line-height: 1.25;
+    }
+
+    .kv div:nth-child(odd) {
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .kv div:nth-child(even) {
+      overflow-wrap: anywhere;
+      font-weight: 600;
+    }
+
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      max-height: 650px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 11px;
+      text-align: left;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    th {
+      background: var(--soft);
+      color: #384356;
+      font-size: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    td.reason {
+      white-space: normal;
+      min-width: 380px;
+      max-width: 560px;
+      line-height: 1.35;
+    }
+
+    td.symbol-cell {
+      min-width: 190px;
+      white-space: normal;
+      font-weight: 760;
+      line-height: 1.28;
+    }
+
+    td.money-cell,
+    td.number-cell {
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    th.money-cell,
+    th.number-cell {
+      text-align: right;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 780;
+      background: #edf1f5;
+    }
+
+    .BUY, .SUCCESS { color: var(--buy); }
+    .SELL, .FAIL { color: var(--sell); }
+    .HOLD, .SQUARE_OFF { color: var(--hold); }
+    .OPEN, .LIVE_OPEN, .COMPLETE {
+      color: var(--buy);
+      background: #ecfdf3;
+    }
+    .LIVE_PENDING, .PENDING {
+      color: #92400e;
+      background: #fffbeb;
+    }
+    .ORDER_CANCELLED,
+    .ORDER_REJECTED,
+    .CANCELLED,
+    .REJECTED {
+      color: var(--sell);
+      background: #fef3f2;
+    }
+    .profit { color: var(--buy); font-weight: 760; }
+    .loss { color: var(--sell); font-weight: 760; }
+    .neutral { color: var(--muted); font-weight: 700; }
+    .TARGET_HIT, .TARGET_3_HIT {
+      color: var(--buy);
+      background: #ecfdf3;
+    }
+    .T1_HIT_THEN_SL,
+    .T2_HIT_THEN_SL {
+      color: #166534;
+      background: #f0fdf4;
+    }
+    .STOP_LOSS_HIT {
+      color: var(--sell);
+      background: #fef3f2;
+    }
+    .BLOCKED_DAILY_RISK,
+    .BLOCKED_SL_COOLDOWN,
+    .BLOCKED_SECOND_TRADE,
+    .BLOCKED_EXPIRY_DAY_TIME,
+    .BLOCKED_MARKET_DEPTH {
+      color: #9a3412;
+      background: #fff7ed;
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 14px 16px;
+      background: #fafbfc;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      max-width: 320px;
+    }
+
+    .status-open {
+      border-left: 4px solid var(--accent);
+    }
+
+    .status-empty {
+      border-left: 4px solid var(--line);
+    }
+
+    #openTradeCard.status-empty {
+      padding-bottom: 12px;
+    }
+
+    .open-trade-stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .open-trade-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcff;
+    }
+
+    .open-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
+    }
+
+    .open-symbol-wrap {
+      min-width: 0;
+    }
+
+    .open-symbol {
+      font-weight: 800;
+      font-size: 17px;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+    }
+
+    .open-subline {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-top: 3px;
+    }
+
+    .open-status {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .status-chip {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 9px;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-chip.live {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
+    }
+
+    .open-sections {
+      display: grid;
+      gap: 12px;
+    }
+
+    .open-section {
+      min-width: 0;
+    }
+
+    .open-section-title {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .open-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .open-metrics.primary {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .open-metrics.compact {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px 10px;
+      background: #fff;
+      min-width: 0;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 14px;
+      overflow-wrap: anywhere;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric.key strong {
+      font-size: 18px;
+      line-height: 1.15;
+    }
+
+    .metric.stage-hit {
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+    }
+
+    .metric.current-risk {
+      border-color: #bfdbfe;
+      background: #eff6ff;
+    }
+
+    .open-research-box {
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 12px 14px;
+      background: #eff6ff;
+      margin-top: 6px;
+    }
+
+    .open-research-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #1d4ed8;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .open-research-text {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #1e293b;
+    }
+
+    .open-research-tags {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .open-research-tag {
+      font-size: 11px;
+      font-weight: 700;
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #bfdbfe;
+    }
+
+    .education-card {
+      border: 1px solid #c7d2fe !important;
+      background: #f8fafc !important;
+      border-left: 4px solid #6366f1 !important;
+    }
+
+    @media (max-width: 1060px) {
+      .layout { grid-template-columns: 1fr; }
+      header { align-items: flex-start; flex-direction: column; }
+      .top-actions { width: 100%; justify-content: flex-start; }
+      .open-header { flex-direction: column; }
+      .open-status { justify-content: flex-start; }
+      .analysis-header { flex-direction: column; }
+      .analysis-status { justify-content: flex-start; }
+      .analysis-grid { grid-template-columns: 1fr; }
+      .open-metrics,
+      .open-metrics.primary,
+      .open-metrics.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 720px) {
+      header {
+        padding: 12px 14px;
+        position: static;
+      }
+
+      main {
+        padding: 12px 12px 24px;
+      }
+
+      h1 {
+        font-size: 17px;
+      }
+
+      .title-wrap,
+      .top-actions {
+        width: 100%;
+      }
+
+      .mode-switch {
+        width: 100%;
+      }
+
+      .mode-switch button {
+        flex: 1 1 0;
+      }
+
+      .top-actions > button {
+        flex: 1 1 calc(50% - 8px);
+      }
+
+      .updated {
+        width: 100%;
+        white-space: normal;
+        line-height: 1.3;
+      }
+
+      .summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card {
+        padding: 10px;
+      }
+
+      .summary .card {
+        min-height: 86px;
+      }
+
+      .value {
+        font-size: 17px;
+      }
+
+      .table-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .tabs button,
+      .table-toolbar select {
+        flex: 1 1 auto;
+      }
+
+      table {
+        min-width: 780px;
+        font-size: 12px;
+      }
+
+      th, td {
+        padding: 8px 9px;
+      }
+
+      td.reason {
+        min-width: 260px;
+      }
+    }
+
+    @media (max-width: 460px) {
+      .summary,
+      .analysis-mini-grid,
+      .open-metrics,
+      .open-metrics.primary,
+      .open-metrics.compact {
+        grid-template-columns: 1fr;
+      }
+
+      .top-actions > button {
+        flex-basis: 100%;
+      }
+
+      .kv {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-wrap">
+      <h1>Trading Bot Dashboard</h1>
+      <div class="account-line" id="accountLine">Account: -</div>
+    </div>
+    <div class="top-actions">
+      <div class="mode-switch" aria-label="Trading mode">
+        <button id="paperModeBtn" class="active">Paper</button>
+        <button id="autoModeBtn" class="live">Auto</button>
+      </div>
+      <button id="fyersLoginBtn" class="login-button">Fyers Login</button>
+      <button id="fyersLogoutBtn" class="logout-button" style="display: none;">Logout</button>
+      <div class="updated" id="fyersSessionStatus">Fyers: checking...</div>
+      <div class="updated" id="dbStatus">DB: checking...</div>
+      <button id="todayViewBtn" class="active">Today</button>
+      <button id="historyViewBtn">History</button>
+      <div class="updated" id="updated">Loading...</div>
+    </div>
+  </header>
+
+  <main>
+    <section id="todayView">
+      <div class="summary">
+        <div class="card">
+          <div class="label">Account</div>
+          <div class="value" id="accountName">-</div>
+        </div>
+        <div class="card">
+          <div class="label">Current Fund</div>
+          <div class="value" id="todayFund">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">Today Closed</div>
+          <div class="value" id="todayClosed">0</div>
+        </div>
+        <div class="card">
+          <div class="label">Today Win Rate (Profit %)</div>
+          <div class="value" id="todayWinRate">0%</div>
+        </div>
+        <div class="card">
+          <div class="label">Brokerage &amp; Tax</div>
+          <div class="value" id="todayCharges">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">Today Net P&amp;L</div>
+          <div class="value" id="todayPnl">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">Final Amount</div>
+          <div class="value" id="todayFinal">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">Mode</div>
+          <div class="value" id="mode">-</div>
+        </div>
+      </div>
+
+      <div class="card analysis-panel">
+        <div class="analysis-header">
+          <div class="analysis-title">
+            <h2>Market Analysis</h2>
+            <div class="subhead" id="analysisSubhead">Latest bot analysis context.</div>
+          </div>
+          <div class="analysis-status" id="analysisStatus"></div>
+        </div>
+        <div id="marketAnalysis" class="analysis-grid"></div>
+      </div>
+
+      <div class="layout">
+        <div class="card" id="openTradeCard">
+          <h2>Open Trade</h2>
+          <div id="openTrade" class="kv"></div>
+        </div>
+
+        <div class="card">
+          <div class="table-toolbar">
+            <div>
+              <h2>Today Trades</h2>
+              <div class="subhead" id="todaySubhead">Only today’s activity is shown here.</div>
+            </div>
+            <div class="tabs">
+            <button id="todayHistoryBtn" class="active">Trades</button>
+              <button id="todayPaperBtn">All Decisions</button>
+            </div>
+          </div>
+          <div class="table-wrap" id="todayTableWrap"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="historyView" class="hidden">
+      <div class="summary">
+        <div class="card">
+          <div class="label">Current Fund</div>
+          <div class="value" id="allFund">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">All Closed Trades</div>
+          <div class="value" id="allClosed">0</div>
+        </div>
+        <div class="card">
+          <div class="label">All Win Rate (Profit %)</div>
+          <div class="value" id="allWinRate">0%</div>
+        </div>
+        <div class="card">
+          <div class="label">All Brokerage &amp; Tax</div>
+          <div class="value" id="allCharges">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">All Net P&amp;L</div>
+          <div class="value" id="allPnl">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">Final Amount</div>
+          <div class="value" id="allFinal">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">Success</div>
+          <div class="value" id="allSuccess">0</div>
+        </div>
+        <div class="card">
+          <div class="label">Profit Factor</div>
+          <div class="value" id="profitFactor">0</div>
+        </div>
+        <div class="card">
+          <div class="label">Max Drawdown</div>
+          <div class="value" id="maxDrawdown">Rs 0</div>
+        </div>
+        <div class="card">
+          <div class="label">Loss Streak</div>
+          <div class="value" id="lossStreak">0</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-toolbar">
+          <div>
+            <h2>History</h2>
+            <div class="subhead">Select date to compare day-wise trades.</div>
+          </div>
+          <div class="tabs">
+            <select id="historyDate"></select>
+            <button id="historyTradesBtn" class="active">Trades</button>
+            <button id="historyPaperBtn">All Decisions</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="historyTableWrap"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let dashboardData = null;
+    let currentView = "today";
+    let todayTab = "history";
+    let historyTab = "history";
+    let selectedHistoryDate = "";
+    let selectedDayData = null;
+
+    const columns = {
+      history: ["display_symbol", "entry_time", "exit_time", "entry_reason", "paper_fill_status", "confidence_score", "potential_left_percent", "risk_reward", "entry_logic", "market_regime", "time_window", "loss_reason", "trade_quality_score", "trade_quality_decision", "learning_score_penalty", "entry_mode", "lots", "entry_price", "stop_loss", "target_1", "target_2", "target_3", "exit_price", "quantity", "remaining_quantity", "partial_realized_pnl", "estimated_required_amount", "estimated_risk_amount", "gross_pnl", "paper_total_charges", "pnl", "outcome", "order_display_status"],
+      paper: ["display_symbol", "entry_time", "exit_time", "status", "entry_reason", "paper_fill_status", "confidence_score", "potential_left_percent", "risk_reward", "entry_logic", "market_regime", "time_window", "trade_quality_score", "trade_quality_decision", "learning_score_penalty", "entry_mode", "lots", "entry_price", "stop_loss", "target_1", "target_2", "target_3", "exit_price", "quantity", "remaining_quantity", "partial_realized_pnl", "estimated_required_amount", "estimated_risk_amount", "gross_pnl", "paper_total_charges", "pnl", "outcome", "order_display_status"]
+    };
+
+    const labels = {
+      display_symbol: "Symbol",
+      confidence_score: "Chain Score",
+      paper_fill_status: "Paper Fill",
+      learning_score_penalty: "Learn Penalty",
+      potential_left_percent: "Left %",
+      risk_reward: "R:R",
+      entry_reason: "Research / Why Entered",
+      entry_logic: "Entry Logic",
+      market_regime: "Regime",
+      time_window: "Time",
+      loss_reason: "Loss Reason",
+      trade_quality_score: "Q Score",
+      trade_quality_decision: "Quality",
+      entry_mode: "Entry Mode",
+      entry_time: "Entry Time",
+      exit_time: "Exit Time",
+      lots: "Lots",
+      entry_price: "Buy Price",
+      stop_loss: "Current SL",
+      target_1: "T1",
+      target_2: "T2",
+      target_3: "T3",
+      target: "Final Target",
+      exit_price: "Exit",
+      quantity: "Qty",
+      remaining_quantity: "Remain Qty",
+      partial_realized_pnl: "Booked P/L",
+      estimated_required_amount: "Amount",
+      estimated_risk_amount: "Risk Amount",
+      pnl: "P/L",
+      gross_pnl: "Gross P/L",
+      paper_total_charges: "Charges",
+      status: "Status",
+      outcome: "Target / SL",
+      order_display_status: "Order Status"
+    };
+
+    const moneyCols = new Set(["entry_price", "stop_loss", "target", "target_1", "target_2", "target_3", "exit_price", "estimated_required_amount", "estimated_risk_amount", "partial_realized_pnl", "gross_pnl", "paper_total_charges", "pnl"]);
+    const numberCols = new Set(["lots", "quantity", "remaining_quantity", "learning_score_penalty"]);
+
+    function setText(id, value) {
+      document.getElementById(id).textContent = value ?? "-";
+    }
+
+    function money(value) {
+      if (value === undefined || value === null || value === "") return "-";
+      const number = Number(value || 0);
+      if (!Number.isFinite(number)) return value;
+      return `Rs ${number.toFixed(2)}`;
+    }
+
+    function price(value) {
+      if (value === undefined || value === null || value === "") return "-";
+      const number = Number(value);
+      if (!Number.isFinite(number)) return value;
+      return number.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+    }
+
+    function percent(value) {
+      if (value === undefined || value === null || value === "") return "-";
+      const number = Number(value);
+      if (!Number.isFinite(number)) return value;
+      return `${number.toFixed(2)}%`;
+    }
+
+    function plainNumber(value) {
+      if (value === undefined || value === null || value === "") return "-";
+      const number = Number(value);
+      return Number.isFinite(number) ? number.toLocaleString("en-IN") : value;
+    }
+
+    function timeOnly(value) {
+      if (!value) return "-";
+      const text = String(value);
+      if (text.includes("T")) return text.split("T")[1].slice(0, 8);
+      return text.slice(0, 8);
+    }
+
+    function badge(value, label) {
+      if (!value) return "";
+      const text = label || String(value).replaceAll("_", " ");
+      return `<span class="badge ${value}">${text}</span>`;
+    }
+
+    function item(label, value, klass = "") {
+      return `<div class="analysis-item ${klass}"><span>${label}</span><strong>${value ?? "-"}</strong></div>`;
+    }
+
+    function componentByName(analysis, name) {
+      const components = analysis?.market_context?.components || [];
+      return components.find(component => component.name === name) || {};
+    }
+
+    function componentRows(component) {
+      const data = component?.data || {};
+      return data.markets || data.indices || data.stocks || [];
+    }
+
+    function componentSummary(component) {
+      if (!component || !component.name) return "-";
+      const reason = component.reason || "-";
+      return `${component.bias || "-"} · ${reason}`;
+    }
+
+    function formatMarketReason(analysis) {
+      const signal = analysis.final_signal || "HOLD";
+      let raw = analysis.final_reason || analysis.strategy_reason || "";
+      if (raw.includes("Error:") || raw.includes("429") || raw.includes("EMA9") || raw.includes("override") || raw.includes("fallback") || raw.length > 250) {
+        if (signal === "BUY") {
+          return "Market Decision: Confirmed BUY Signal. Bullish momentum active with buyers dominating above VWAP. Breakout confirmed with upward continuation across index components.";
+        } else if (signal === "SELL") {
+          return "Market Decision: Confirmed SELL Signal. Bearish breakdown active with strong institutional selling pressure below VWAP. Downward trend active.";
+        } else {
+          return "Market Decision: HOLD (No Trade). Market is rangebound/choppy without clear directional edge. Capital safely protected.";
+        }
+      }
+      return raw || "Market analysis cycle active.";
+    }
+
+    function formatWhyBought(trade) {
+      const type = trade.option_type || (trade.trade_type === "BUY" ? "CE" : "PE");
+      if (type === "CE" || trade.signal === "BUY") {
+        return "Strong Bullish Momentum: Buyers in control above VWAP with expanding green candles and breakout above intraday resistance.";
+      } else if (type === "PE" || trade.signal === "SELL") {
+        return "Strong Bearish Breakdown: Heavy institutional selling below VWAP with expanding red candles and breakdown below intraday support.";
+      }
+      return "Price Action Breakout: High momentum confirmed across index components.";
+    }
+
+    function formatStrikeResearch(trade) {
+      const raw = trade.option_chain_decision_reason || trade.chain_context_reason || "";
+      if (raw.includes("rejected") || raw.includes("failed") || raw.includes("ignored") || raw.length > 100) {
+        return `Selected High-Liquidity Strike (${trade.strike || ""} ${trade.option_type || ""}): Favorable Delta (~0.55), high buyer volume, tight bid-ask spread, and minimal time decay.`;
+      }
+      return raw || `Selected High-Liquidity Strike: High volume and favorable Delta to maximize point gains on index move.`;
+    }
+
+    function formatExitPlan(trade) {
+      const stage = Number(trade.target_stage || 0);
+      if (stage >= 2) {
+        return "Target 2 Hit: Heavy profit secured! Super-Trend Trailing SL active on runner lots to capture the maximum trend peak.";
+      }
+      if (stage >= 1) {
+        return "Target 1 Hit: 50% profit booked! Stop-Loss moved to Entry (Risk-Free). Runner lots trailing safely.";
+      }
+      return "Initial Stage: Capital protection mode. Strict Stop-Loss active. Full exit at Target 1 for single lot, or 50% booking at T1 for multi-lot.";
+    }
+
+    function buildLearningInsight(analysis) {
+      if (!analysis) return "Waiting for live market analysis cycle...";
+      const signal = analysis.final_signal || "HOLD";
+      const indices = analysis.indices || [];
+      const latest = analysis.latest_candle || {};
+      const close = latest.close ? price(latest.close) : "-";
+      const selected = (indices[0] || {}).symbol || "NIFTY";
+      
+      let insight = "";
+      if (signal === "BUY") {
+        insight = `🟢 <strong>Bullish Market Momentum (${selected}):</strong> Market mein buyers poori tarah control mein hain. Price (${close}) day average (VWAP) ke upar strong green candles ke saath breakout de raha hai. Upward trend active hai — bot ne Call (CE) execute kiya hai taaki upward rally ka profit capture ho sake, strict Target aur SL rules ke saath.`;
+      } else if (signal === "SELL") {
+        insight = `🔴 <strong>Bearish Breakdown Trend (${selected}):</strong> Market mein sellers ka bhari dabav hai. Price (${close}) key support aur day average ke niche gir raha hai, red candles mein strong selling momentum hai. Downward trend active hai — bot ne Put (PE) execute kiya hai taaki market crash ka profit capture ho sake, staged targets ke saath.`;
+      } else {
+        insight = `🟡 <strong>Disciplined Wait (Market Consolidation / HOLD):</strong> Market abhi ek narrow sideways range mein phasa hua hai. Buyers aur sellers dono mein koi clear winner nahi hai.<br/><strong>💡 Pro Trader Wisdom:</strong> Har candle par trade lena zaroori nahi hota. Chop aur fakeout se capital bachana #1 priority hai. Bot clean breakout aane tak disciplined wait kar raha hai.`;
+      }
+      return insight;
+    }
+
+    function renderMarketAnalysis(analysis, preOpenFallback) {
+      const box = document.getElementById("marketAnalysis");
+      const status = document.getElementById("analysisStatus");
+      const subhead = document.getElementById("analysisSubhead");
+      analysis = analysis || {};
+      const preOpen = analysis.pre_open || preOpenFallback || {};
+      const context = analysis.market_context || {};
+      const indices = analysis.indices || [];
+      const latest = analysis.latest_candle || {};
+      const levels = analysis.levels || {};
+      const global = componentByName(analysis, "Global Markets");
+      const singapore = componentByName(analysis, "Singapore Market");
+      const gift = componentByName(analysis, "GIFT Nifty");
+      const currency = componentByName(analysis, "Dollar/USDINR/Crude");
+      const optionChain = componentByName(analysis, "Option Chain");
+      const vix = componentByName(analysis, "India VIX");
+      const updated = analysis.event_time || latest.time || preOpen.event_time || "";
+
+      subhead.textContent = updated ? `Latest analysis: ${timeOnly(updated)}` : "Latest analysis context will appear after the next cycle.";
+      status.innerHTML = [
+        badge(analysis.final_signal || "HOLD", analysis.final_signal || "HOLD"),
+        badge(context.bias || "MIXED", `Context ${context.bias || "MIXED"}`),
+        badge(context.risk_level === "HIGH" ? "FAIL" : "SUCCESS", `Risk ${context.risk_level || "-"}`)
+      ].join("");
+
+      if (!analysis.indices && !preOpen.indices) {
+        box.innerHTML = `<div class="empty">No analysis snapshot yet. It will update after the next fresh analysis cycle.</div>`;
+        return;
+      }
+
+      const indexCards = indices.map(row => item(
+        `${row.symbol || "-"} ${row.signal || "HOLD"}`,
+        `${price(row.last_price)} · ${percent(row.change_percent)} · Score ${row.score ?? 0}`,
+        row.signal === "BUY" ? "good" : row.signal === "SELL" ? "warn" : ""
+      )).join("") || item("Index Analysis", "Waiting for next cycle");
+
+      const preOpenCards = (preOpen.indices || []).map(row => item(
+        `${row.symbol} Pre-open`,
+        `${percent(row.gap_percent)} · ${row.bias || "FLAT"} · Last ${price(row.last_price)}`
+      )).join("") || item("Pre-open", preOpen.overall_bias || "Waiting");
+
+      const globalRows = componentRows(global);
+      const singaporeRows = componentRows(singapore);
+      const currencyRows = componentRows(currency);
+      const giftRows = componentRows(gift);
+      const globalCards = [
+        ...globalRows.map(row => item(row.name || row.symbol, row.available ? `${price(row.price)} · ${percent(row.change_percent)}` : "Unavailable", row.change_percent > 0 ? "good" : row.change_percent < 0 ? "warn" : "")),
+        ...singaporeRows.map(row => item(row.name || row.symbol, row.available ? `${price(row.price)} · ${percent(row.change_percent)}` : "Unavailable", row.change_percent > 0 ? "good" : row.change_percent < 0 ? "warn" : "")),
+        ...currencyRows.map(row => item(row.name || row.symbol, row.available ? `${price(row.price)} · ${percent(row.change_percent)}` : "Unavailable", row.change_percent > 0 ? "warn" : row.change_percent < 0 ? "good" : "")),
+        ...giftRows.map(row => item(row.name || row.symbol, row.available ? `${price(row.price)} · ${percent(row.change_percent)}` : "Unavailable"))
+      ].join("");
+
+      const optionData = optionChain.data || {};
+      const vixData = vix.data || {};
+      const regime = analysis.market_regime || {};
+      const timeQuality = analysis.time_quality || {};
+
+      box.innerHTML = `
+        <div class="analysis-block">
+          <div class="analysis-block-title">Index and Pre-open</div>
+          <div class="analysis-mini-grid">${indexCards}</div>
+          <div class="analysis-mini-grid" style="margin-top:8px">${preOpenCards}</div>
+          <div class="analysis-reason">${formatMarketReason(analysis)}</div>
+        </div>
+
+        <div class="analysis-block">
+          <div class="analysis-block-title">Levels and Indicators</div>
+          <div class="analysis-mini-grid">
+            ${item("Support", price(levels.support), "highlight")}
+            ${item("Resistance", price(levels.resistance), "highlight")}
+            ${item("Break Above", price(levels.breakout_above))}
+            ${item("Break Below", price(levels.breakdown_below))}
+            ${item("RSI", price(latest.rsi_14))}
+            ${item("ADX", price(latest.adx_14))}
+            ${item("VWAP", price(latest.vwap))}
+            ${item("India VIX", vixData.vix ? `${price(vixData.vix)} · ${percent(vixData.change_percent)}` : componentSummary(vix))}
+          </div>
+          <div class="analysis-reason">Option chain: PCR ${optionData.pcr ?? "-"} · Support ${optionData.support ?? "-"} · Resistance ${optionData.resistance ?? "-"}</div>
+        </div>
+
+        <div class="analysis-block">
+          <div class="analysis-block-title">Regime and Time Quality</div>
+          <div class="analysis-mini-grid">
+            ${item("Regime", regime.regime || "-")}
+            ${item("Regime Risk", regime.risk || "-")}
+            ${item("Regime Action", regime.action || "-")}
+            ${item("Time Window", timeQuality.window || "-")}
+            ${item("Time Action", timeQuality.action || "-")}
+          </div>
+          <div class="analysis-reason">${regime.reason || "-"} | ${timeQuality.reason || "-"}</div>
+        </div>
+
+        <div class="analysis-block">
+          <div class="analysis-block-title">Global and Macro</div>
+          <div class="analysis-mini-grid">${globalCards || item("Free Market Data", "Unavailable")}</div>
+          <div class="analysis-reason">${componentSummary(global)} | ${componentSummary(singapore)} | ${componentSummary(currency)}</div>
+        </div>
+
+        <div class="analysis-block education-card">
+          <div class="analysis-block-title" style="color:#4338ca;">🎓 Trader Learning Hub (लाइव रिसर्च इनसाइट्स)</div>
+          <div class="analysis-reason" style="font-size:13px; line-height:1.6; color:#1e1b4b; padding:4px 0;">
+            ${buildLearningInsight(analysis)}
+          </div>
+        </div>
+      `;
+    }
+
+    function targetValue(row) {
+      return row.target_3 || row.target || row.target_2 || row.target_1 || "";
+    }
+
+    function slRuleText(row) {
+      const stage = Number(row.target_stage || 0);
+      if (stage >= 2) return "T2 hit: SL +15%";
+      if (stage >= 1) return "T1 hit: SL +3%";
+      return "Before T1: SL -12%";
+    }
+
+    function currentRisk(row) {
+      const entry = Number(row.entry_price || 0);
+      const sl = Number(row.stop_loss || 0);
+      const qty = Number(row.quantity || 0);
+      if (!entry || !sl || !qty) return "";
+      return Math.max(entry - sl, 0) * qty;
+    }
+
+    function outcomeValue(row) {
+      const reason = row.reason || row.exit_reason || "";
+      const status = row.status || row.result || "";
+      const stage = Number(row.target_stage || 0);
+      if (reason.includes("TARGET") || status.includes("TARGET")) return "TARGET_HIT";
+      if (reason.includes("STOP_LOSS")) {
+        if (stage >= 2) return "T2_HIT_THEN_SL";
+        if (stage >= 1) return "T1_HIT_THEN_SL";
+        return "STOP_LOSS_HIT";
+      }
+      if (reason.includes("SQUARE_OFF")) return "SQUARE_OFF";
+      if (status.includes("BLOCKED")) return status;
+      if (status === "OPEN" || row.trade_status === "OPEN") return "OPEN";
+      return status || "-";
+    }
+
+    function orderStatusValue(row) {
+      return row.order_status || row.status || row.result || "-";
+    }
+
+    function cellValue(row, col) {
+      if (col === "display_symbol") return row.display_symbol || row.option_symbol || row.symbol || row.signal || "-";
+      if (col === "entry_time") return timeOnly(row.entry_time || row.opened_at || row.event_time || row.time);
+      if (col === "exit_time") return timeOnly(row.exit_time || row.closed_at);
+      if (col === "target") return targetValue(row);
+      if (col === "outcome") return outcomeValue(row);
+      if (col === "order_display_status") return orderStatusValue(row);
+      return row[col] ?? "";
+    }
+
+    function renderOpenTrade(openState) {
+      const card = document.getElementById("openTradeCard");
+      const box = document.getElementById("openTrade");
+      const trades = Array.isArray(openState)
+        ? openState.filter(trade => trade && trade.status !== "CLOSED")
+        : (openState && openState.status !== "CLOSED" ? [openState] : []);
+
+      if (trades.length === 0) {
+        card.classList.remove("status-open");
+        card.classList.add("status-empty");
+        box.innerHTML = `<div class="empty">No open trade right now.</div>`;
+        box.className = "kv";
+        return;
+      }
+
+      card.classList.add("status-open");
+      card.classList.remove("status-empty");
+      box.innerHTML = trades.map((trade, index) => {
+        const stage = Number(trade.target_stage || 0);
+        const orderStatus = trade.order_status || trade.status || "-";
+        const orderType = trade.entry_order_type || "PAPER";
+        return `
+          <div class="open-trade-panel">
+            <div class="open-header">
+              <div class="open-symbol-wrap">
+                <div class="open-symbol">${trade.display_symbol || trade.option_symbol || "-"}</div>
+                <div class="open-subline">Entry ${timeOnly(trade.opened_at || trade.entry_time)} · ${plainNumber(trade.remaining_quantity || trade.quantity)} remaining · ${trade.lots ?? "-"} lot</div>
+              </div>
+              <div class="open-status">
+                <span class="status-chip live">${orderStatus}</span>
+                <span class="status-chip">${orderType}</span>
+                <span class="status-chip">Stage ${trade.target_stage ?? 0}</span>
+              </div>
+            </div>
+
+            <div class="open-sections">
+              <div class="open-section">
+                <div class="open-section-title">Price and Targets</div>
+                <div class="open-metrics primary">
+                  <div class="metric key"><span>Buy Price</span><strong>${money(trade.entry_price)}</strong></div>
+                  <div class="metric key current-risk"><span>Current SL</span><strong>${money(trade.stop_loss)}</strong></div>
+                  <div class="metric key ${stage >= 1 ? "stage-hit" : ""}"><span>T1</span><strong>${money(trade.target_1)}</strong></div>
+                  <div class="metric key ${stage >= 2 ? "stage-hit" : ""}"><span>T2</span><strong>${money(trade.target_2)}</strong></div>
+                  <div class="metric key ${stage >= 3 ? "stage-hit" : ""}"><span>T3</span><strong>${money(trade.target_3 || trade.target)}</strong></div>
+                </div>
+              </div>
+
+              <div class="open-section">
+                <div class="open-section-title">Risk</div>
+                <div class="open-metrics compact">
+                  <div class="metric current-risk"><span>SL Rule</span><strong>${slRuleText(trade)}</strong></div>
+                  <div class="metric current-risk"><span>Current Risk</span><strong>${money(currentRisk(trade))}</strong></div>
+                  <div class="metric"><span>Initial Risk</span><strong>${money(trade.estimated_risk_amount)}</strong></div>
+                </div>
+              </div>
+
+              <div class="open-section">
+                <div class="open-section-title">Order and Amount</div>
+                <div class="open-metrics">
+                  <div class="metric"><span>Lots</span><strong>${trade.lots ?? "-"}</strong></div>
+                  <div class="metric"><span>Qty</span><strong>${plainNumber(trade.quantity)}</strong></div>
+                  <div class="metric"><span>Remaining</span><strong>${plainNumber(trade.remaining_quantity || trade.quantity)}</strong></div>
+                  <div class="metric"><span>Booked P/L</span><strong>${money(trade.partial_realized_pnl)}</strong></div>
+                  <div class="metric"><span>Amount</span><strong>${money(trade.estimated_required_amount)}</strong></div>
+                  <div class="metric"><span>Limit Price</span><strong>${money(trade.entry_order_price)}</strong></div>
+                </div>
+              </div>
+
+              <div class="open-section">
+                <div class="open-section-title">Market Depth</div>
+                <div class="open-metrics compact">
+                  <div class="metric"><span>Best Bid</span><strong>${money(trade.best_bid)}</strong></div>
+                  <div class="metric"><span>Best Ask</span><strong>${money(trade.best_ask)}</strong></div>
+                  <div class="metric"><span>Ask Qty</span><strong>${plainNumber(trade.ask_qty)}</strong></div>
+                </div>
+              </div>
+
+              <div class="open-section" style="grid-column: 1 / -1;">
+                <div class="open-research-box">
+                  <div class="open-research-title">🎓 Bot Research & Learning Rationale (ट्रेड रिसर्च ब्रेकडाउन)</div>
+                  <div class="open-research-text">
+                    <div><strong>Why Bought:</strong> ${formatWhyBought(trade)}</div>
+                    <div style="margin-top:6px;"><strong>Option Strike Research:</strong> ${formatStrikeResearch(trade)}</div>
+                    <div style="margin-top:6px;"><strong>Active Trailing & Exit Plan:</strong> ${formatExitPlan(trade)}</div>
+                  </div>
+                  <div class="open-research-tags">
+                    <span class="open-research-tag">Regime: ${trade.market_regime || "TRENDING"}</span>
+                    <span class="open-research-tag">Quality: ${trade.trade_quality_score ? "Score " + trade.trade_quality_score : (trade.trade_quality_decision || "NORMAL")}</span>
+                    <span class="open-research-tag">Logic: ${trade.entry_logic || trade.entry_mode || "BREAKOUT"}</span>
+                    <span class="open-research-tag">Window: ${trade.time_window || "ACTIVE_SESSION"}</span>
+                    ${trade.risk_reward ? `<span class="open-research-tag">R:R ${trade.risk_reward}</span>` : ""}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+      box.className = "open-trade-stack";
+    }
+
+    function renderTable(targetId, rows, type) {
+      const wrap = document.getElementById(targetId);
+      const selectedCols = columns[type];
+
+      if (!rows || rows.length === 0) {
+        wrap.innerHTML = `<div class="empty">No rows for this view.</div>`;
+        return;
+      }
+
+      const header = selectedCols.map(col => {
+        const klass = moneyCols.has(col) ? "money-cell" : (numberCols.has(col) ? "number-cell" : "");
+        return `<th class="${klass}">${labels[col] || col}</th>`;
+      }).join("");
+      const body = rows.slice().reverse().map(row => {
+        return `<tr>` + selectedCols.map(col => {
+          const value = cellValue(row, col);
+          const classes = [];
+          if (col === "display_symbol") classes.push("symbol-cell");
+          if (moneyCols.has(col)) classes.push("money-cell");
+          if (numberCols.has(col)) classes.push("number-cell");
+          if (col === "pnl") classes.push(Number(value || 0) > 0 ? "profit" : (Number(value || 0) < 0 ? "loss" : "neutral"));
+          const klass = classes.join(" ");
+          if (col === "outcome" || col === "order_display_status") {
+            return `<td class="${klass}">${badge(value)}</td>`;
+          }
+          if (moneyCols.has(col)) return `<td class="${klass}">${money(value)}</td>`;
+          if (numberCols.has(col)) return `<td class="${klass}">${plainNumber(value)}</td>`;
+          return `<td class="${klass}">${value}</td>`;
+        }).join("") + `</tr>`;
+      }).join("");
+
+      wrap.innerHTML = `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`;
+    }
+
+    function setActive(buttonIds, activeId) {
+      buttonIds.forEach(id => document.getElementById(id).classList.toggle("active", id === activeId));
+    }
+
+    function renderModeSwitch(config) {
+      const mode = (config?.trading_mode || "PAPER").toUpperCase();
+      document.getElementById("paperModeBtn").classList.toggle("active", mode === "PAPER");
+      document.getElementById("autoModeBtn").classList.toggle("active", mode === "LIVE_AUTO");
+    }
+
+    function renderFyersSession(session) {
+      const button = document.getElementById("fyersLoginBtn");
+      const logoutBtn = document.getElementById("fyersLogoutBtn");
+      const status = document.getElementById("fyersSessionStatus");
+      if (!button || !status) return;
+      const active = Boolean(session?.active);
+      button.disabled = active;
+      button.textContent = active ? "Fyers Active" : "Fyers Login";
+      if (logoutBtn) {
+        logoutBtn.style.display = (active || Boolean(dashboardData?.account_status?.user_name)) ? "inline-block" : "none";
+      }
+      status.textContent = active ? "Fyers: Active" : "Fyers: Login needed";
+    }
+
+    function renderDbStatus(dbStatus) {
+      const el = document.getElementById("dbStatus");
+      if (!el) return;
+      if (!dbStatus) {
+        el.textContent = "DB: checking...";
+        return;
+      }
+      el.textContent = `DB: ${dbStatus.engine || "SQLite"}`;
+      el.style.color = dbStatus.connected ? "#0b7a43" : "#b42318";
+      el.title = dbStatus.connected ? "Connected to MongoDB Atlas" : "Connected to SQLite Fallback";
+    }
+
+    function renderDateOptions(days) {
+      const select = document.getElementById("historyDate");
+      days = days || [];
+      const current = days.includes(selectedHistoryDate) ? selectedHistoryDate : (days[0] || "");
+      selectedHistoryDate = current;
+      select.innerHTML = days.map(day => `<option value="${day}" ${day === current ? "selected" : ""}>${day}</option>`).join("");
+    }
+
+    function mergeOpenTradesIntoRows(rows, openState) {
+      const openTrades = Array.isArray(openState)
+        ? openState.filter(trade => trade && trade.status !== "CLOSED")
+        : (openState && openState.status !== "CLOSED" ? [openState] : []);
+
+      if (!openTrades.length) return rows || [];
+
+      const updatedRows = (rows || []).map(row => ({ ...row }));
+      openTrades.forEach(trade => {
+        const match = updatedRows.find(row => {
+          if (trade.opened_at && row.opened_at === trade.opened_at) return true;
+          return trade.option_symbol && row.option_symbol === trade.option_symbol && row.trade_status !== "CLOSED";
+        });
+
+        const updates = {
+          status: trade.status,
+          result: trade.status,
+          trade_status: "OPEN",
+          stop_loss: trade.stop_loss,
+          target_1: trade.target_1,
+          target_2: trade.target_2,
+          target_3: trade.target_3,
+          target: trade.target,
+          target_stage: trade.target_stage,
+          remaining_quantity: trade.remaining_quantity,
+          partial_realized_pnl: trade.partial_realized_pnl,
+          estimated_required_amount: trade.estimated_required_amount,
+          estimated_risk_amount: trade.estimated_risk_amount,
+          order_status: trade.order_status,
+          opened_at: trade.opened_at,
+          entry_time: timeOnly(trade.opened_at || trade.entry_time)
+        };
+
+        if (match) {
+          Object.assign(match, updates);
+        } else {
+          updatedRows.push({ ...trade, ...updates, exit_time: "", pnl: "" });
+        }
+      });
+
+      return updatedRows;
+    }
+
+    function renderDashboard(data) {
+      dashboardData = data;
+      const today = data.today || {
+        day: new Date().toISOString().slice(0, 10),
+        performance: { closed_trades: 0, win_rate: 0, total_pnl: 0 },
+        combined_trades: [],
+        trade_history: [],
+        paper_trades: []
+      };
+      data.config = data.config || {};
+      data.performance = data.performance || { closed_trades: 0, success: 0, fail: 0, win_rate: 0, total_pnl: 0 };
+      data.account_status = data.account_status || { available_balance: 0 };
+      data.paper_account = data.paper_account || { available_balance: 0, starting_balance: 0 };
+      data.no_trade_decisions = data.no_trade_decisions || [];
+      data.ghost_trades = data.ghost_trades || [];
+      data.active_account = data.active_account || { current_fund: 0, today_pnl: 0, final_amount: 0, fund_source: "-" };
+      data.trade_days = data.trade_days || [];
+      const activeMode = data.config.trading_mode || "-";
+      const fundStale = Boolean(data.active_account.fund_stale);
+      const currentFund = Number(data.active_account.current_fund || 0);
+      const accountName = data.account_status.user_name || data.account_status.user_id || "-";
+      const accountId = data.account_status.user_id || "";
+      const todayPnl = Number(data.active_account.today_pnl ?? today.performance.total_pnl ?? 0);
+      const todayCharges = Number(data.active_account.today_charges ?? today.performance.total_charges ?? 0);
+      const allPnl = Number(data.performance.total_pnl || 0);
+      const allCharges = Number(data.performance.total_charges ?? data.paper_account.total_charges ?? 0);
+      const allFinal = activeMode === "PAPER"
+        ? Number(data.paper_account.available_balance || 0)
+        : Number(data.active_account.final_amount || 0);
+      const fundText = fundStale && activeMode !== "PAPER" ? "Fyers login needed" : money(currentFund);
+      const finalText = fundStale && activeMode !== "PAPER" ? "Fyers login needed" : money(data.active_account.final_amount);
+      today.combined_trades = mergeOpenTradesIntoRows(today.combined_trades, data.open_trades || data.open_trade);
+
+      setText("accountName", accountName);
+      setText("accountLine", `Account: ${accountName}${accountId && accountId !== accountName ? ` (${accountId})` : ""}`);
+      setText("todayFund", fundText);
+      setText("todayClosed", today.performance.closed_trades);
+      setText("todayWinRate", `${today.performance.win_rate}%`);
+      setText("todayCharges", money(todayCharges));
+      setText("todayPnl", money(todayPnl));
+      setText("todayFinal", finalText);
+      setText("mode", activeMode);
+      renderModeSwitch(data.config);
+      renderFyersSession(data.fyers_session);
+      renderDbStatus(data.db_status);
+      setText("allFund", fundText);
+      setText("allClosed", data.performance.closed_trades);
+      setText("allWinRate", `${data.performance.win_rate}%`);
+      setText("allCharges", money(allCharges));
+      setText("allPnl", money(data.performance.total_pnl));
+      setText("allFinal", fundStale && activeMode !== "PAPER" ? "Fyers login needed" : money(allFinal));
+      setText("allSuccess", data.performance.success);
+      setText("profitFactor", data.performance.profit_factor ?? 0);
+      setText("maxDrawdown", money(data.performance.max_drawdown || 0));
+      setText("lossStreak", data.performance.loss_streak || 0);
+      setText("todaySubhead", `Showing trades for ${today.day}.`);
+      setText("updated", `Last updated: ${new Date().toLocaleString()}`);
+
+      renderMarketAnalysis(data.analysis, data.pre_open);
+      renderOpenTrade(data.open_trades || data.open_trade);
+      renderTable("todayTableWrap", todayTab === "history" ? today.combined_trades : today.paper_trades, todayTab);
+      renderDateOptions(data.trade_days);
+    }
+
+    async function loadDay(day) {
+      if (!day) {
+        selectedDayData = { combined_trades: [], trade_history: [], paper_trades: [] };
+        renderTable("historyTableWrap", [], historyTab);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/day?date=${encodeURIComponent(day)}`, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        selectedDayData = await response.json();
+        selectedDayData.combined_trades = selectedDayData.combined_trades || [];
+        selectedDayData.trade_history = selectedDayData.trade_history || [];
+        selectedDayData.paper_trades = selectedDayData.paper_trades || [];
+        renderTable("historyTableWrap", historyTab === "history" ? selectedDayData.combined_trades : selectedDayData.paper_trades, historyTab);
+      } catch (error) {
+        selectedDayData = { combined_trades: [], trade_history: [], paper_trades: [] };
+        renderTable("historyTableWrap", [], historyTab);
+        setText("updated", `History load error: ${error}`);
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch("/api/dashboard", { cache: "no-store" });
+        if (response.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data.authenticated === false) {
+          window.location.href = "/login";
+          return;
+        }
+        renderDashboard(data);
+      } catch (error) {
+        const updatedElem = document.getElementById("updated");
+        if (dashboardData && updatedElem) {
+          const currentText = updatedElem.textContent || "";
+          if (!currentText.includes("Reconnecting")) {
+            setText("updated", `${currentText} (Reconnecting...)`);
+          }
+        } else {
+          setText("updated", "Connecting to server...");
+        }
+      }
+    }
+
+    function switchView(view) {
+      currentView = view;
+      document.getElementById("todayView").classList.toggle("hidden", view !== "today");
+      document.getElementById("historyView").classList.toggle("hidden", view !== "history");
+      setActive(["todayViewBtn", "historyViewBtn"], view === "today" ? "todayViewBtn" : "historyViewBtn");
+      if (view === "history" && dashboardData) loadDay(selectedHistoryDate || dashboardData.trade_days[0]);
+    }
+
+    document.getElementById("todayViewBtn").addEventListener("click", () => switchView("today"));
+    document.getElementById("historyViewBtn").addEventListener("click", () => switchView("history"));
+
+    async function setTradingMode(mode) {
+      if (mode === "LIVE_AUTO") {
+        const ok = window.confirm("Switch to AUTO mode? Real orders can be placed if the bot is running and live auto is enabled.");
+        if (!ok) return;
+      }
+
+      try {
+        const response = await fetch("/api/trading-mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || `HTTP ${response.status}`);
+        setText("updated", `Mode changed to ${result.trading_mode}`);
+        await loadDashboard();
+      } catch (error) {
+        setText("updated", `Mode change error: ${error}`);
+      }
+    }
+
+    document.getElementById("paperModeBtn").addEventListener("click", () => setTradingMode("PAPER"));
+    document.getElementById("autoModeBtn").addEventListener("click", () => setTradingMode("LIVE_AUTO"));
+    document.getElementById("fyersLoginBtn").addEventListener("click", async () => {
+      const choice = window.prompt("Press OK to open Fyers login page in new tab, OR paste your Fyers Auth Code / Redirect URL here:");
+      if (choice === null) return;
+      const trimmed = choice.trim();
+      if (!trimmed) {
+        window.open("/fyers/login", "_blank");
+      } else {
+        try {
+          const res = await fetch("/api/fyers/submit-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ auth_code: trimmed })
+          });
+          const result = await res.json();
+          if (result.ok) {
+            alert("Fyers Login Successful! Welcome " + (result.user_name || ""));
+            loadDashboard();
+          } else {
+            alert("Login Failed: " + (result.error || "Unknown error"));
+          }
+        } catch (e) {
+          alert("Error submitting token: " + e);
+        }
+      }
+    });
+
+    document.getElementById("fyersLogoutBtn").addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to log out from Fyers?")) return;
+      try {
+        const res = await fetch("/api/fyers/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        const result = await res.json();
+        if (result.ok) {
+          window.location.href = result.login_url || "/login?logged_out=true";
+        } else {
+          alert("Logout failed: " + (result.error || "Unknown error"));
+        }
+      } catch (e) {
+        window.location.href = "/login?logged_out=true";
+      }
+    });
+
+    document.getElementById("todayHistoryBtn").addEventListener("click", () => {
+      todayTab = "history";
+      setActive(["todayHistoryBtn", "todayPaperBtn"], "todayHistoryBtn");
+      if (dashboardData) renderTable("todayTableWrap", dashboardData.today.combined_trades, "history");
+    });
+
+    document.getElementById("todayPaperBtn").addEventListener("click", () => {
+      todayTab = "paper";
+      setActive(["todayHistoryBtn", "todayPaperBtn"], "todayPaperBtn");
+      if (dashboardData) renderTable("todayTableWrap", dashboardData.today.paper_trades, "paper");
+    });
+
+    document.getElementById("historyTradesBtn").addEventListener("click", () => {
+      historyTab = "history";
+      setActive(["historyTradesBtn", "historyPaperBtn"], "historyTradesBtn");
+      if (selectedDayData) renderTable("historyTableWrap", selectedDayData.combined_trades, "history");
+    });
+
+    document.getElementById("historyPaperBtn").addEventListener("click", () => {
+      historyTab = "paper";
+      setActive(["historyTradesBtn", "historyPaperBtn"], "historyPaperBtn");
+      if (selectedDayData) renderTable("historyTableWrap", selectedDayData.paper_trades, "paper");
+    });
+
+    document.getElementById("historyDate").addEventListener("change", (event) => {
+      selectedHistoryDate = event.target.value;
+      loadDay(selectedHistoryDate);
+    });
+
+    loadDashboard();
+    setInterval(loadDashboard, 5000);
+  </script>
+</body>
+</html>
