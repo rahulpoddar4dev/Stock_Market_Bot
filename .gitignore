@@ -1,0 +1,24 @@
+.env
+.DS_Store
+.venv/
+fyers_session.json
+open_trade.json
+account_status.json
+paper_account.json
+runtime_settings.json
+__pycache__/
+*.pyc
+*.db
+bot_stdout.log
+bot_stderr.log
+
+# Runtime/generated data
+logs/
+reports/
+cloud_exports/
+data/historical/
+data/events/*.csv
+data/options/*.csv
+
+# Generated documents
+*.docx

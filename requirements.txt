@@ -1,0 +1,10 @@
+setuptools<70.0.0
+wheel
+fyers-apiv3
+websocket-client
+aiohttp
+pandas
+requests
+pytest
+psycopg2-binary
+pymongo

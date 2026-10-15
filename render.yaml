@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: trading-ai-bot
+    env: python
+    buildCommand: pip install --upgrade pip "setuptools<70" wheel && pip install --no-build-isolation -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+      - key: AGGRESSIVE_TRADER_MODE
+        value: "true"
+      - key: AGGRESSIVE_IGNORE_SOFT_BLOCKS
+        value: "true"
+      - key: AGGRESSIVE_ALLOW_LOW_OPTION_SCORE
+        value: "true"
+      - key: AGGRESSIVE_ALLOW_MARKET_DEPTH_BLOCK
+        value: "true"
+      - key: AGGRESSIVE_FORCE_AI_HOLD_FALLBACK
+        value: "true"
+      - key: PAPER_BALANCE
+        value: "100000"
