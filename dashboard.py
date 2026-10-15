@@ -884,6 +884,7 @@ def build_dashboard_data() -> dict:
         "db_status": {
             "engine": "MongoDB Atlas" if (lambda: (__import__("database").is_mongo()))() else "SQLite Fallback",
             "connected": bool((lambda: (__import__("database").is_mongo()))()),
+            "error": str((lambda: (__import__("database").get_mongo_error()))() or ""),
         },
     }
 

@@ -28,6 +28,11 @@ _MONGO_CLIENT = None
 _MONGO_DB = None
 _MONGO_AVAILABLE = None
 _LAST_MONGO_FAIL_TIME = 0.0
+_LAST_MONGO_ERROR = ""
+
+
+def get_mongo_error() -> str:
+    return _LAST_MONGO_ERROR
 
 
 def get_bot_env() -> str:
@@ -64,11 +69,12 @@ def now_ist() -> datetime:
 
 
 def get_mongo_db():
-    global _MONGO_CLIENT, _MONGO_DB, _MONGO_AVAILABLE, _LAST_MONGO_FAIL_TIME
+    global _MONGO_CLIENT, _MONGO_DB, _MONGO_AVAILABLE, _LAST_MONGO_FAIL_TIME, _LAST_MONGO_ERROR
     if _MONGO_DB is not None:
         return _MONGO_DB
     if pymongo is None:
         _MONGO_AVAILABLE = False
+        _LAST_MONGO_ERROR = "pymongo package is not installed"
         return None
 
     now = time.time()
@@ -76,17 +82,22 @@ def get_mongo_db():
         return None
 
     try:
-        uri = os.getenv("MONGO_URI", getattr(config, "MONGO_URI", "mongodb://localhost:27017"))
-        db_name = os.getenv("MONGO_DB_NAME", getattr(config, "MONGO_DB_NAME", "stock_market_bot"))
+        raw_uri = os.getenv("MONGO_URI", getattr(config, "MONGO_URI", "mongodb://localhost:27017"))
+        raw_db = os.getenv("MONGO_DB_NAME", getattr(config, "MONGO_DB_NAME", "stock_market_bot"))
+        uri = str(raw_uri or "").strip().strip("'\"")
+        db_name = str(raw_db or "").strip().strip("'\"")
+
         client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=6000)
         client.admin.command("ping")
         _MONGO_CLIENT = client
         _MONGO_DB = client[db_name]
         _MONGO_AVAILABLE = True
+        _LAST_MONGO_ERROR = ""
         print(f"[Database] Successfully connected to MongoDB Atlas database: {db_name}")
         return _MONGO_DB
     except Exception as e:
         _LAST_MONGO_FAIL_TIME = now
+        _LAST_MONGO_ERROR = str(e)
         _MONGO_AVAILABLE = False
         print(f"[Database] MongoDB connection failed: {e}. Falling back to SQLite/Postgres.")
         return None
