@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote_plus, urlparse
 
 import config
+from log_capture import init_log_capture
+init_log_capture()
 from account_status import load_account_status, save_account_status
 from analysis_snapshot import load_analysis_snapshot
 from fyers_login import (
@@ -999,6 +1001,51 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_login_html()
             return
 
+        if path == "/logs":
+            session = fyers_session_status()
+            if not session.get("active"):
+                self.redirect("/login")
+                return
+            self.send_logs_html()
+            return
+
+        if path == "/api/logs":
+            session = fyers_session_status()
+            if not session.get("active"):
+                self.send_json({"authenticated": False, "redirect": "/login"}, status=401)
+                return
+            from log_capture import read_live_logs
+            date_str, size_str, content = read_live_logs()
+            self.send_json({"date": date_str, "size_kb": size_str, "content": content})
+            return
+
+        if path == "/api/logs/raw":
+            session = fyers_session_status()
+            if not session.get("active"):
+                self.redirect("/login")
+                return
+            from log_capture import read_live_logs
+            _, _, content = read_live_logs()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(content.encode("utf-8", errors="replace"))
+            return
+
+        if path == "/api/logs/download":
+            session = fyers_session_status()
+            if not session.get("active"):
+                self.redirect("/login")
+                return
+            from log_capture import read_live_logs
+            date_str, _, content = read_live_logs()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="bot_logs_{date_str}.txt"')
+            self.end_headers()
+            self.wfile.write(content.encode("utf-8", errors="replace"))
+            return
+
         if path == "/api/dashboard":
             session = fyers_session_status()
             if not session.get("active"):
@@ -1139,6 +1186,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def send_login_html(self):
         login_path = BASE_DIR / "login.html"
         body = login_path.read_text(encoding="utf-8") if login_path.exists() else "<h1>Login Required</h1><a href='/fyers/login'>Login with Fyers</a>"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(body.encode("utf-8"))
+
+    def send_logs_html(self):
+        logs_path = BASE_DIR / "logs.html"
+        body = logs_path.read_text(encoding="utf-8") if logs_path.exists() else "<h1>Logs page not found</h1>"
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()

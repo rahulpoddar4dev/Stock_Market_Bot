@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trading Bot Live Logs</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #030712;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header Nav matching exact screenshot */
+    header {
+      background: #080e1c;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      height: 54px;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      background: linear-gradient(135deg, #a855f7 0%, #38bdf8 50%, #06b6d4 100%);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+      flex-shrink: 0;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #38bdf8;
+      letter-spacing: -0.01em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #94a3b8;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 13px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      border: 1px solid transparent;
+      outline: none;
+    }
+
+    .btn-primary {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #0284c7;
+    }
+
+    .btn-primary:hover {
+      background: #0369a1;
+      border-color: #0369a1;
+    }
+
+    .btn-secondary {
+      background: #111827;
+      color: #cbd5e1;
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .btn-secondary:hover {
+      background: #1f2937;
+      color: #f8fafc;
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Terminal Console */
+    .terminal-container {
+      flex: 1;
+      background: #030712;
+      overflow-y: scroll;
+      padding: 16px 20px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      position: relative;
+    }
+
+    /* Custom White Scrollbar matching screenshot */
+    .terminal-container::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    .terminal-container::-webkit-scrollbar-track {
+      background: #030712;
+    }
+
+    .terminal-container::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.85);
+      border-radius: 5px;
+      border: 2px solid #030712;
+    }
+
+    .terminal-container::-webkit-scrollbar-thumb:hover {
+      background: #ffffff;
+    }
+
+    /* Auto-refresh indicator */
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      margin-right: 2px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.9); }
+    }
+
+    .copy-success {
+      background: #15803d !important;
+      border-color: #15803d !important;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand-wrap">
+      <div class="logo-icon"></div>
+      <span class="brand-title">Trading Bot Live Logs</span>
+      <span class="badge" id="badgeDate">Date: ----</span>
+      <span class="badge" id="badgeSize">0.0 KB</span>
+      <span class="badge"><span class="status-dot"></span>Live Stream</span>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn btn-primary" id="btnCopy">
+        <span>📋</span> Copy All Logs
+      </button>
+      <a class="btn btn-secondary" id="btnDownload" href="/api/logs/download" download>
+        <span>⬇</span> Download .txt
+      </a>
+      <a class="btn btn-secondary" id="btnRaw" href="/api/logs/raw" target="_blank">
+        <span>📄</span> Raw Text
+      </a>
+      <button class="btn btn-secondary" id="btnRefresh">
+        <span>🔄</span> Refresh
+      </button>
+      <a class="btn btn-secondary" href="/">
+        <span>⬅</span> Back to Dashboard
+      </a>
+    </div>
+  </header>
+
+  <div class="terminal-container" id="terminal">Loading logs...</div>
+
+  <script>
+    const terminal = document.getElementById("terminal");
+    const badgeDate = document.getElementById("badgeDate");
+    const badgeSize = document.getElementById("badgeSize");
+    const btnCopy = document.getElementById("btnCopy");
+    const btnRefresh = document.getElementById("btnRefresh");
+
+    let isUserScrolledUp = false;
+    let rawLogText = "";
+
+    // Track scroll position so we don't snap to bottom if user is reading past logs
+    terminal.addEventListener("scroll", () => {
+      const atBottom = terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight < 40;
+      isUserScrolledUp = !atBottom;
+    });
+
+    async function fetchLogs() {
+      try {
+        const res = await fetch("/api/logs?t=" + Date.now());
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        if (!res.ok) throw new Error("Failed to load logs");
+        const data = await res.json();
+
+        rawLogText = data.content || "No logs recorded yet.";
+        terminal.textContent = rawLogText;
+
+        if (data.date) badgeDate.textContent = "Date: " + data.date;
+        if (data.size_kb) badgeSize.textContent = data.size_kb;
+
+        // Auto-scroll to bottom unless user scrolled up
+        if (!isUserScrolledUp) {
+          terminal.scrollTop = terminal.scrollHeight;
+        }
+      } catch (err) {
+        console.error("Log fetch error:", err);
+      }
+    }
+
+    // Copy to clipboard
+    btnCopy.addEventListener("click", async () => {
+      if (!rawLogText) return;
+      try {
+        await navigator.clipboard.writeText(rawLogText);
+        const originalText = btnCopy.innerHTML;
+        btnCopy.innerHTML = "<span>✓</span> Copied!";
+        btnCopy.classList.add("copy-success");
+        setTimeout(() => {
+          btnCopy.innerHTML = originalText;
+          btnCopy.classList.remove("copy-success");
+        }, 2000);
+      } catch (err) {
+        alert("Copy failed. Please use 'Raw Text' to copy manually.");
+      }
+    });
+
+    // Manual refresh
+    btnRefresh.addEventListener("click", () => {
+      fetchLogs();
+    });
+
+    // Initial load
+    fetchLogs();
+
+    // Auto-refresh every 3 seconds
+    setInterval(fetchLogs, 3000);
+  </script>
+</body>
+</html>

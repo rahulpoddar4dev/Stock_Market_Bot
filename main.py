@@ -3,6 +3,8 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 from requests.exceptions import ConnectionError, Timeout
+from log_capture import init_log_capture
+init_log_capture()
 from account_status import save_account_status
 from analysis_snapshot import save_analysis_snapshot
 from dashboard import start_dashboard_background
