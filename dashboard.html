@@ -6,22 +6,17 @@
   <title>Trading Bot Dashboard</title>
   <style>
     :root {
-      --bg: #070c18;
-      --bg-gradient: radial-gradient(circle at 50% 0%, #152342 0%, #0a0f1d 45%, #050811 100%);
-      --panel: rgba(15, 23, 42, 0.72);
-      --panel-solid: #0f172a;
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --line: rgba(255, 255, 255, 0.08);
-      --line-highlight: rgba(59, 130, 246, 0.28);
-      --soft: rgba(255, 255, 255, 0.03);
-      --accent: #2563eb;
-      --accent-hover: #1d4ed8;
-      --accent-glow: rgba(37, 99, 235, 0.35);
-      --buy: #10b981;
-      --sell: #f43f5e;
-      --hold: #f59e0b;
-      --danger: #f43f5e;
+      --bg: #f7f9fc;
+      --panel: #ffffff;
+      --text: #18212f;
+      --muted: #667085;
+      --line: #dfe5ef;
+      --soft: #eef2f7;
+      --accent: #2457c5;
+      --buy: #0b7a43;
+      --sell: #b42318;
+      --hold: #806000;
+      --danger: #b42318;
     }
 
     * { box-sizing: border-box; }
@@ -32,20 +27,16 @@
 
     body {
       margin: 0;
-      background: var(--bg-gradient);
-      background-attachment: fixed;
+      background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 14px;
-      min-height: 100vh;
     }
 
     header {
-      background: rgba(10, 15, 29, 0.85);
+      background: var(--panel);
       border-bottom: 1px solid var(--line);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      padding: 14px 24px;
+      padding: 12px 22px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -53,18 +44,14 @@
       flex-wrap: wrap;
       position: sticky;
       top: 0;
-      z-index: 10;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      z-index: 3;
     }
 
     h1 {
       margin: 0;
-      font-size: 19px;
-      font-weight: 800;
-      letter-spacing: -0.01em;
-      background: linear-gradient(135deg, #ffffff 40%, #93c5fd 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      font-size: 18px;
+      font-weight: 750;
+      letter-spacing: 0;
     }
 
     .title-wrap {
@@ -76,7 +63,7 @@
     .account-line {
       color: var(--muted);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 650;
       line-height: 1.25;
     }
 
@@ -90,45 +77,26 @@
 
     .updated {
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 500;
+      font-size: 13px;
       white-space: nowrap;
-      padding: 4px 8px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     button, select {
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(30, 41, 59, 0.65);
+      border: 1px solid var(--line);
+      background: var(--panel);
       color: var(--text);
-      border-radius: 8px;
-      padding: 8px 12px;
+      border-radius: 7px;
+      padding: 8px 11px;
       cursor: pointer;
       font-weight: 650;
-      font-size: 13px;
+      font-size: 14px;
       min-height: 38px;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    button:hover, select:hover {
-      background: rgba(51, 65, 85, 0.85);
-      border-color: rgba(255, 255, 255, 0.22);
-      transform: translateY(-1px);
-    }
-
-    button:active, select:active {
-      transform: translateY(0);
     }
 
     button.active {
-      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-      border-color: #3b82f6;
+      background: var(--accent);
+      border-color: var(--accent);
       color: #fff;
-      box-shadow: 0 4px 14px var(--accent-glow);
     }
 
     .mode-switch {
@@ -137,45 +105,24 @@
       border: 1px solid var(--line);
       border-radius: 8px;
       overflow: hidden;
-      background: rgba(15, 23, 42, 0.8);
-      backdrop-filter: blur(8px);
+      background: #fff;
     }
 
     .mode-switch button {
       border: 0;
       border-radius: 0;
-      padding: 8px 14px;
-      background: transparent;
-      color: var(--muted);
-      min-height: 36px;
-    }
-
-    .mode-switch button:hover {
-      background: rgba(255, 255, 255, 0.05);
-      transform: none;
-    }
-
-    .mode-switch button.active {
-      background: #2563eb;
-      color: #fff;
-      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+      padding: 8px 12px;
     }
 
     .mode-switch button.live.active {
-      background: #e11d48;
+      background: var(--danger);
       color: #fff;
-      box-shadow: 0 2px 8px rgba(225, 29, 72, 0.4);
     }
 
     .login-button {
-      border-color: rgba(16, 185, 129, 0.4);
-      color: #34d399;
-      background: rgba(16, 185, 129, 0.12);
-    }
-
-    .login-button:hover {
-      background: rgba(16, 185, 129, 0.22);
-      border-color: rgba(16, 185, 129, 0.6);
+      border-color: #bbf7d0;
+      color: #166534;
+      background: #f0fdf4;
     }
 
     .login-button:disabled {
@@ -184,20 +131,15 @@
     }
 
     .logout-button {
-      border-color: rgba(244, 63, 94, 0.4);
-      color: #fb7185;
-      background: rgba(244, 63, 94, 0.12);
-    }
-
-    .logout-button:hover {
-      background: rgba(244, 63, 94, 0.22);
-      border-color: rgba(244, 63, 94, 0.6);
+      border-color: #fecaca;
+      color: #991b1b;
+      background: #fef2f2;
     }
 
     main {
       max-width: 1440px;
       margin: 0 auto;
-      padding: 20px 24px 36px;
+      padding: 16px 22px 30px;
     }
 
     .hidden { display: none !important; }
@@ -205,30 +147,20 @@
     .summary {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
+      gap: 10px;
+      margin-bottom: 12px;
     }
 
     .card {
       background: var(--panel);
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 14px;
+      border-radius: 8px;
+      padding: 12px;
       min-width: 0;
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .card:hover {
-      border-color: var(--line-highlight);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 16px rgba(37, 99, 235, 0.08);
-      transform: translateY(-1px);
     }
 
     .summary .card {
-      min-height: 98px;
+      min-height: 96px;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
@@ -236,26 +168,22 @@
 
     .label {
       color: var(--muted);
-      font-size: 11px;
+      font-size: 12px;
       margin-bottom: 6px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
+      font-weight: 650;
     }
 
     .value {
-      font-size: 21px;
-      font-weight: 800;
+      font-size: 20px;
+      font-weight: 780;
       overflow-wrap: anywhere;
       line-height: 1.18;
-      font-variant-numeric: tabular-nums;
-      color: #f8fafc;
     }
 
     .layout {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 14px;
+      gap: 12px;
       align-items: start;
     }
 
@@ -263,8 +191,6 @@
       margin: 0 0 12px;
       font-size: 16px;
       font-weight: 750;
-      color: #ffffff;
-      letter-spacing: -0.01em;
     }
 
     .subhead {
@@ -274,7 +200,7 @@
     }
 
     .analysis-panel {
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
 
     .analysis-header {
@@ -313,7 +239,6 @@
       font-weight: 800;
       margin-bottom: 7px;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
     }
 
     .analysis-mini-grid {
@@ -328,27 +253,25 @@
 
     .analysis-item {
       border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 10px 12px;
-      background: rgba(15, 23, 42, 0.55);
-      backdrop-filter: blur(8px);
+      border-radius: 7px;
+      padding: 9px 10px;
+      background: #fff;
       min-width: 0;
-      transition: border-color 0.2s ease;
     }
 
     .analysis-item.highlight {
-      border-color: rgba(59, 130, 246, 0.35);
-      background: rgba(37, 99, 235, 0.08);
+      border-color: #bfdbfe;
+      background: #eff6ff;
     }
 
     .analysis-item.warn {
-      border-color: rgba(245, 158, 11, 0.35);
-      background: rgba(245, 158, 11, 0.08);
+      border-color: #fed7aa;
+      background: #fff7ed;
     }
 
     .analysis-item.good {
-      border-color: rgba(16, 185, 129, 0.35);
-      background: rgba(16, 185, 129, 0.08);
+      border-color: #bbf7d0;
+      background: #f0fdf4;
     }
 
     .analysis-item span {
@@ -366,13 +289,12 @@
       line-height: 1.2;
       overflow-wrap: anywhere;
       font-variant-numeric: tabular-nums;
-      color: #fff;
     }
 
     .analysis-reason {
       color: var(--muted);
       font-size: 12px;
-      line-height: 1.4;
+      line-height: 1.35;
       margin-top: 8px;
       overflow-wrap: anywhere;
     }
@@ -392,7 +314,6 @@
     .kv div:nth-child(even) {
       overflow-wrap: anywhere;
       font-weight: 600;
-      color: #f1f5f9;
     }
 
     .table-toolbar {
@@ -400,7 +321,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
     .tabs {
@@ -412,11 +333,8 @@
     .table-wrap {
       overflow: auto;
       border: 1px solid var(--line);
-      border-radius: 12px;
-      background: rgba(11, 17, 33, 0.8);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      border-radius: 8px;
+      background: #fff;
       max-height: 650px;
     }
 
@@ -428,40 +346,26 @@
 
     th, td {
       border-bottom: 1px solid var(--line);
-      padding: 11px 12px;
+      padding: 10px 11px;
       text-align: left;
       vertical-align: middle;
       white-space: nowrap;
     }
 
     th {
-      background: rgba(15, 23, 42, 0.95);
-      color: #94a3b8;
-      font-size: 11px;
-      font-weight: 750;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      background: var(--soft);
+      color: #384356;
+      font-size: 12px;
       position: sticky;
       top: 0;
-      z-index: 2;
-      backdrop-filter: blur(12px);
-    }
-
-    td {
-      color: #e2e8f0;
-      font-size: 13px;
-    }
-
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.025);
+      z-index: 1;
     }
 
     td.reason {
       white-space: normal;
       min-width: 380px;
       max-width: 560px;
-      line-height: 1.4;
-      color: #cbd5e1;
+      line-height: 1.35;
     }
 
     td.symbol-cell {
@@ -469,7 +373,6 @@
       white-space: normal;
       font-weight: 760;
       line-height: 1.28;
-      color: #ffffff;
     }
 
     td.money-cell,
@@ -485,71 +388,116 @@
 
     .badge {
       display: inline-block;
-      padding: 3px 9px;
+      padding: 3px 8px;
       border-radius: 999px;
-      font-size: 11px;
-      font-weight: 750;
-      background: rgba(255, 255, 255, 0.08);
-      letter-spacing: 0.02em;
+      font-size: 12px;
+      font-weight: 780;
+      background: #edf1f5;
     }
 
-    .BUY, .SUCCESS { color: var(--buy); font-weight: 750; }
-    .SELL, .FAIL { color: var(--sell); font-weight: 750; }
-    .HOLD, .SQUARE_OFF { color: var(--hold); font-weight: 750; }
+    .BUY, .SUCCESS { color: var(--buy); }
+    .SELL, .FAIL { color: var(--sell); }
+    .HOLD, .SQUARE_OFF { color: var(--hold); }
     .OPEN, .LIVE_OPEN, .COMPLETE {
-      color: #34d399;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--buy);
+      background: #ecfdf3;
     }
     .LIVE_PENDING, .PENDING {
-      color: #fbbf24;
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #92400e;
+      background: #fffbeb;
     }
     .ORDER_CANCELLED,
     .ORDER_REJECTED,
     .CANCELLED,
     .REJECTED {
-      color: #fb7185;
-      background: rgba(244, 63, 94, 0.15);
-      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: var(--sell);
+      background: #fef3f2;
     }
-    .profit { color: #34d399; font-weight: 780; }
-    .loss { color: #fb7185; font-weight: 780; }
+    .profit { color: var(--buy); font-weight: 760; }
+    .loss { color: var(--sell); font-weight: 760; }
     .neutral { color: var(--muted); font-weight: 700; }
+    .profit-text { color: var(--buy) !important; font-weight: 760; }
+    .loss-text { color: var(--sell) !important; font-weight: 760; }
+    .neutral-text { color: var(--muted) !important; font-weight: 700; }
+
+    .open-pnl-card {
+      border-radius: 8px;
+      padding: 13px 16px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .open-pnl-card.profit {
+      background: #f0fdf4;
+      border: 1.5px solid #86efac;
+      color: #15803d;
+    }
+    .open-pnl-card.loss {
+      background: #fef2f2;
+      border: 1.5px solid #fca5a5;
+      color: #b91c1c;
+    }
+    .open-pnl-card.neutral {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      color: #475569;
+    }
+    .open-pnl-label {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      opacity: 0.9;
+    }
+    .open-pnl-value {
+      font-size: 26px;
+      font-weight: 850;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .open-pnl-percent {
+      font-size: 17px;
+      font-weight: 750;
+      margin-left: 6px;
+    }
+    .open-pnl-sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .open-pnl-sub strong {
+      color: var(--text);
+    }
     .TARGET_HIT, .TARGET_3_HIT {
-      color: #34d399;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--buy);
+      background: #ecfdf3;
     }
     .T1_HIT_THEN_SL,
     .T2_HIT_THEN_SL {
-      color: #6ee7b7;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #166534;
+      background: #f0fdf4;
     }
     .STOP_LOSS_HIT {
-      color: #fb7185;
-      background: rgba(244, 63, 94, 0.15);
-      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: var(--sell);
+      background: #fef3f2;
     }
     .BLOCKED_DAILY_RISK,
     .BLOCKED_SL_COOLDOWN,
     .BLOCKED_SECOND_TRADE,
     .BLOCKED_EXPIRY_DAY_TIME,
     .BLOCKED_MARKET_DEPTH {
-      color: #fb923c;
-      background: rgba(249, 115, 22, 0.15);
-      border: 1px solid rgba(249, 115, 22, 0.3);
+      color: #9a3412;
+      background: #fff7ed;
     }
 
     .empty {
       color: var(--muted);
-      padding: 16px 18px;
-      background: rgba(15, 23, 42, 0.4);
+      padding: 14px 16px;
+      background: #fafbfc;
       border: 1px dashed var(--line);
-      border-radius: 10px;
-      max-width: 340px;
+      border-radius: 8px;
+      max-width: 320px;
     }
 
     .status-open {
@@ -571,11 +519,9 @@
 
     .open-trade-panel {
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 16px;
-      background: rgba(15, 23, 42, 0.65);
-      backdrop-filter: blur(12px);
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcff;
     }
 
     .open-header {
@@ -583,9 +529,9 @@
       align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
       border-bottom: 1px solid var(--line);
-      padding-bottom: 12px;
+      padding-bottom: 10px;
     }
 
     .open-symbol-wrap {
@@ -594,9 +540,8 @@
 
     .open-symbol {
       font-weight: 800;
-      font-size: 18px;
+      font-size: 17px;
       line-height: 1.3;
-      color: #fff;
       overflow-wrap: anywhere;
     }
 
@@ -615,20 +560,19 @@
     }
 
     .status-chip {
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--line);
       border-radius: 999px;
-      padding: 5px 11px;
-      background: rgba(255, 255, 255, 0.05);
+      padding: 5px 9px;
+      background: #fff;
       font-size: 12px;
-      font-weight: 750;
+      font-weight: 800;
       white-space: nowrap;
-      color: #e2e8f0;
     }
 
     .status-chip.live {
-      border-color: rgba(16, 185, 129, 0.35);
-      background: rgba(16, 185, 129, 0.12);
-      color: #34d399;
+      border-color: #bbf7d0;
+      background: #f0fdf4;
+      color: #166534;
     }
 
     .open-sections {
@@ -644,7 +588,7 @@
       color: var(--muted);
       font-size: 11px;
       font-weight: 800;
-      letter-spacing: 0.04em;
+      letter-spacing: 0;
       margin-bottom: 6px;
       text-transform: uppercase;
     }
@@ -665,9 +609,9 @@
 
     .metric {
       border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 12px;
-      background: rgba(15, 23, 42, 0.6);
+      border-radius: 7px;
+      padding: 9px 10px;
+      background: #fff;
       min-width: 0;
     }
 
@@ -682,10 +626,8 @@
     .metric strong {
       display: block;
       font-size: 14px;
-      font-weight: 750;
       overflow-wrap: anywhere;
       font-variant-numeric: tabular-nums;
-      color: #f1f5f9;
     }
 
     .metric.key strong {
@@ -694,28 +636,27 @@
     }
 
     .metric.stage-hit {
-      border-color: rgba(16, 185, 129, 0.35);
-      background: rgba(16, 185, 129, 0.08);
+      border-color: #bbf7d0;
+      background: #f0fdf4;
     }
 
     .metric.current-risk {
-      border-color: rgba(59, 130, 246, 0.35);
-      background: rgba(37, 99, 235, 0.08);
+      border-color: #bfdbfe;
+      background: #eff6ff;
     }
 
     .open-research-box {
-      border: 1px solid rgba(59, 130, 246, 0.35);
-      border-radius: 10px;
-      padding: 14px 16px;
-      background: rgba(30, 58, 138, 0.15);
-      margin-top: 8px;
-      backdrop-filter: blur(8px);
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 12px 14px;
+      background: #eff6ff;
+      margin-top: 6px;
     }
 
     .open-research-title {
       font-size: 12px;
       font-weight: 800;
-      color: #60a5fa;
+      color: #1d4ed8;
       margin-bottom: 6px;
       display: flex;
       align-items: center;
@@ -727,7 +668,7 @@
     .open-research-text {
       font-size: 13px;
       line-height: 1.6;
-      color: #cbd5e1;
+      color: #1e293b;
     }
 
     .open-research-tags {
@@ -740,32 +681,17 @@
     .open-research-tag {
       font-size: 11px;
       font-weight: 700;
-      background: rgba(37, 99, 235, 0.2);
-      color: #93c5fd;
-      padding: 3px 9px;
-      border-radius: 6px;
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      background: #dbeafe;
+      color: #1e40af;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #bfdbfe;
     }
 
     .education-card {
-      border: 1px solid rgba(99, 102, 241, 0.35) !important;
-      background: rgba(30, 27, 75, 0.3) !important;
-      border-left: 4px solid #818cf8 !important;
-    }
-
-    ::-webkit-scrollbar {
-      width: 7px;
-      height: 7px;
-    }
-    ::-webkit-scrollbar-track {
-      background: rgba(10, 15, 29, 0.8);
-    }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: rgba(59, 130, 246, 0.45);
+      border: 1px solid #c7d2fe !important;
+      background: #f8fafc !important;
+      border-left: 4px solid #6366f1 !important;
     }
 
     @media (max-width: 1060px) {
@@ -896,7 +822,7 @@
       <div class="updated" id="dbStatus">DB: checking...</div>
       <button id="todayViewBtn" class="active">Today</button>
       <button id="historyViewBtn">History</button>
-      <a href="/logs" class="nav-logs-btn" style="display:inline-flex; align-items:center; gap:5px; text-decoration:none; padding:7px 12px; font-size:12px; font-weight:700; border-radius:8px; background:rgba(56, 189, 248, 0.12); color:#38bdf8; border:1px solid rgba(56, 189, 248, 0.35); transition:all 0.2s ease;">📜 Live Logs</a>
+      <a href="/logs" class="nav-logs-btn" style="display:inline-flex; align-items:center; gap:5px; text-decoration:none; padding:7px 12px; font-size:12px; font-weight:700; border-radius:8px; background:rgba(36, 87, 197, 0.08); color:var(--accent); border:1px solid rgba(36, 87, 197, 0.3); transition:all 0.2s ease;">📜 Live Logs</a>
       <div class="updated" id="updated">Loading...</div>
     </div>
   </header>
@@ -927,6 +853,7 @@
         <div class="card">
           <div class="label">Today Net P&amp;L</div>
           <div class="value" id="todayPnl">Rs 0</div>
+          <div class="subhead" id="todayLivePnlSubhead" style="font-size:11px; font-weight:700; margin-top:4px;"></div>
         </div>
         <div class="card">
           <div class="label">Final Amount</div>
@@ -1390,6 +1317,23 @@
         const stage = Number(trade.target_stage || 0);
         const orderStatus = trade.order_status || trade.status || "-";
         const orderType = trade.entry_order_type || "PAPER";
+        const entryPrice = Number(trade.entry_price || 0);
+        const currentPrice = Number(trade.current_price || trade.last_monitor_price || entryPrice);
+        const remainingQty = Number(trade.remaining_quantity || trade.quantity || 0);
+        const bookedPnl = Number(trade.partial_realized_pnl || 0);
+        const unrealizedPnl = trade.unrealized_pnl !== undefined
+          ? Number(trade.unrealized_pnl)
+          : (entryPrice > 0 ? (currentPrice - entryPrice) * remainingQty : 0);
+        const totalLivePnl = trade.live_pnl !== undefined
+          ? Number(trade.live_pnl)
+          : (unrealizedPnl + bookedPnl);
+        const profitPercent = trade.profit_percent !== undefined
+          ? Number(trade.profit_percent)
+          : (entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0);
+
+        const pnlStatus = totalLivePnl > 0 ? "profit" : (totalLivePnl < 0 ? "loss" : "neutral");
+        const pnlSign = totalLivePnl > 0 ? "+" : "";
+        const pctSign = profitPercent > 0 ? "+" : "";
         return `
           <div class="open-trade-panel">
             <div class="open-header">
@@ -1404,10 +1348,22 @@
               </div>
             </div>
 
+            <div class="open-pnl-card ${pnlStatus}">
+              <div class="open-pnl-label">Live Running P&amp;L</div>
+              <div class="open-pnl-value">${pnlSign}${money(totalLivePnl)} <span class="open-pnl-percent">(${pctSign}${profitPercent.toFixed(2)}%)</span></div>
+              <div class="open-pnl-sub">
+                Current LTP: <strong class="${currentPrice > entryPrice ? 'profit-text' : (currentPrice < entryPrice ? 'loss-text' : '')}">${money(currentPrice)}</strong> · 
+                Buy Price: <strong>${money(entryPrice)}</strong> · 
+                Unrealized: <strong class="${unrealizedPnl > 0 ? 'profit-text' : (unrealizedPnl < 0 ? 'loss-text' : '')}">${unrealizedPnl > 0 ? '+' : ''}${money(unrealizedPnl)}</strong>
+                ${bookedPnl ? ` · Booked: <strong>${money(bookedPnl)}</strong>` : ''}
+              </div>
+            </div>
+
             <div class="open-sections">
               <div class="open-section">
                 <div class="open-section-title">Price and Targets</div>
-                <div class="open-metrics primary">
+                <div class="open-metrics primary" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
+                  <div class="metric key ${currentPrice > entryPrice ? 'stage-hit' : (currentPrice < entryPrice ? 'current-risk' : '')}"><span>Current LTP</span><strong class="${currentPrice > entryPrice ? 'profit-text' : (currentPrice < entryPrice ? 'loss-text' : '')}">${money(currentPrice)}</strong></div>
                   <div class="metric key"><span>Buy Price</span><strong>${money(trade.entry_price)}</strong></div>
                   <div class="metric key current-risk"><span>Current SL</span><strong>${money(trade.stop_loss)}</strong></div>
                   <div class="metric key ${stage >= 1 ? "stage-hit" : ""}"><span>T1</span><strong>${money(trade.target_1)}</strong></div>
@@ -1427,10 +1383,11 @@
 
               <div class="open-section">
                 <div class="open-section-title">Order and Amount</div>
-                <div class="open-metrics">
+                <div class="open-metrics" style="grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));">
                   <div class="metric"><span>Lots</span><strong>${trade.lots ?? "-"}</strong></div>
                   <div class="metric"><span>Qty</span><strong>${plainNumber(trade.quantity)}</strong></div>
                   <div class="metric"><span>Remaining</span><strong>${plainNumber(trade.remaining_quantity || trade.quantity)}</strong></div>
+                  <div class="metric ${totalLivePnl > 0 ? 'stage-hit' : (totalLivePnl < 0 ? 'current-risk' : '')}"><span>Live P/L</span><strong class="${totalLivePnl > 0 ? 'profit-text' : (totalLivePnl < 0 ? 'loss-text' : 'neutral-text')}">${pnlSign}${money(totalLivePnl)}</strong></div>
                   <div class="metric"><span>Booked P/L</span><strong>${money(trade.partial_realized_pnl)}</strong></div>
                   <div class="metric"><span>Amount</span><strong>${money(trade.estimated_required_amount)}</strong></div>
                   <div class="metric"><span>Limit Price</span><strong>${money(trade.entry_order_price)}</strong></div>
@@ -1562,10 +1519,15 @@
           return trade.option_symbol && row.option_symbol === trade.option_symbol && row.trade_status !== "CLOSED";
         });
 
+        const livePnl = trade.live_pnl !== undefined ? trade.live_pnl : (trade.unrealized_pnl !== undefined ? trade.unrealized_pnl : 0);
         const updates = {
           status: trade.status,
           result: trade.status,
           trade_status: "OPEN",
+          current_price: trade.current_price,
+          profit_percent: trade.profit_percent,
+          pnl: livePnl,
+          gross_pnl: trade.unrealized_pnl || 0,
           stop_loss: trade.stop_loss,
           target_1: trade.target_1,
           target_2: trade.target_2,
@@ -1584,7 +1546,7 @@
         if (match) {
           Object.assign(match, updates);
         } else {
-          updatedRows.push({ ...trade, ...updates, exit_time: "", pnl: "" });
+          updatedRows.push({ ...trade, ...updates, exit_time: "", pnl: livePnl });
         }
       });
 
@@ -1624,13 +1586,40 @@
       const finalText = fundStale && activeMode !== "PAPER" ? "Fyers login needed" : money(data.active_account.final_amount);
       today.combined_trades = mergeOpenTradesIntoRows(today.combined_trades, data.open_trades || data.open_trade);
 
+      const openTradesList = (Array.isArray(data.open_trades) ? data.open_trades : (data.open_trade ? [data.open_trade] : [])).filter(t => t && t.status !== "CLOSED");
+      let openUnrealized = 0;
+      if (openTradesList.length > 0) {
+        openUnrealized = openTradesList.reduce((acc, t) => acc + Number(t.live_pnl !== undefined ? t.live_pnl : (t.unrealized_pnl || 0)), 0);
+      }
+      const combinedTodayPnl = Number(data.active_account.live_today_pnl !== undefined ? data.active_account.live_today_pnl : (todayPnl + openUnrealized));
+
       setText("accountName", accountName);
       setText("accountLine", `Account: ${accountName}${accountId && accountId !== accountName ? ` (${accountId})` : ""}`);
       setText("todayFund", fundText);
       setText("todayClosed", today.performance.closed_trades);
       setText("todayWinRate", `${today.performance.win_rate}%`);
       setText("todayCharges", money(todayCharges));
-      setText("todayPnl", money(todayPnl));
+
+      const todayPnlEl = document.getElementById("todayPnl");
+      if (todayPnlEl) {
+        todayPnlEl.textContent = (combinedTodayPnl > 0 ? "+" : "") + money(combinedTodayPnl);
+        todayPnlEl.className = "value " + (combinedTodayPnl > 0 ? "profit-text" : (combinedTodayPnl < 0 ? "loss-text" : "neutral-text"));
+      }
+
+      const liveSubEl = document.getElementById("todayLivePnlSubhead");
+      if (liveSubEl) {
+        if (openTradesList.length > 0) {
+          const ot = openTradesList[0];
+          const otPnl = Number(ot.live_pnl !== undefined ? ot.live_pnl : (ot.unrealized_pnl || 0));
+          const otPct = Number(ot.profit_percent || 0);
+          const sign = otPnl > 0 ? "+" : "";
+          const cls = otPnl > 0 ? "profit-text" : (otPnl < 0 ? "loss-text" : "neutral-text");
+          liveSubEl.innerHTML = `<span class="${cls}">● Open Trade Live P/L: ${sign}${money(otPnl)} (${sign}${otPct.toFixed(2)}%)</span>`;
+        } else {
+          liveSubEl.innerHTML = `<span style="color:var(--muted); font-size:11px;">Booked: ${money(todayPnl)}</span>`;
+        }
+      }
+
       setText("todayFinal", finalText);
       setText("mode", activeMode);
       renderModeSwitch(data.config);
@@ -1640,7 +1629,12 @@
       setText("allClosed", data.performance.closed_trades);
       setText("allWinRate", `${data.performance.win_rate}%`);
       setText("allCharges", money(allCharges));
-      setText("allPnl", money(data.performance.total_pnl));
+
+      const allPnlEl = document.getElementById("allPnl");
+      if (allPnlEl) {
+        allPnlEl.textContent = (allPnl > 0 ? "+" : "") + money(allPnl);
+        allPnlEl.className = "value " + (allPnl > 0 ? "profit-text" : (allPnl < 0 ? "loss-text" : "neutral-text"));
+      }
       setText("allFinal", fundStale && activeMode !== "PAPER" ? "Fyers login needed" : money(allFinal));
       setText("allSuccess", data.performance.success);
       setText("profitFactor", data.performance.profit_factor ?? 0);

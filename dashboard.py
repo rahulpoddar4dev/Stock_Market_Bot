@@ -205,13 +205,15 @@ def filter_rows_for_mode(rows: list[dict], mode: str) -> list[dict]:
     return [row for row in rows if row_matches_mode(row, mode)]
 
 
-def active_account_summary(account_status: dict, paper_account: dict, today_performance: dict, mode: str) -> dict:
+def active_account_summary(account_status: dict, paper_account: dict, today_performance: dict, mode: str, open_trades: list[dict] | None = None) -> dict:
     broker_balance = float(account_status.get("broker_balance") or account_status.get("available_balance") or 0)
     paper_balance = float(paper_account.get("available_balance") or 0)
     today_pnl = float(today_performance.get("total_pnl") or 0)
     today_charges = float(today_performance.get("total_charges") or 0)
     today_gross_pnl = float(today_performance.get("gross_pnl") or 0)
     status_mode = str(account_status.get("mode") or "").upper()
+    open_unrealized_pnl = round(sum(float(t.get("unrealized_pnl") or 0.0) for t in (open_trades or [])), 2)
+    live_today_pnl = round(today_pnl + open_unrealized_pnl, 2)
 
     if mode == "PAPER":
         final_amount = paper_balance
@@ -223,6 +225,8 @@ def active_account_summary(account_status: dict, paper_account: dict, today_perf
             "today_gross_pnl": round(today_gross_pnl, 2),
             "today_charges": round(today_charges, 2),
             "today_pnl": round(today_pnl, 2),
+            "open_unrealized_pnl": open_unrealized_pnl,
+            "live_today_pnl": live_today_pnl,
             "final_amount": round(final_amount, 2),
             "broker_balance": broker_balance,
             "paper_balance": round(paper_balance, 2),
@@ -238,6 +242,8 @@ def active_account_summary(account_status: dict, paper_account: dict, today_perf
         "today_gross_pnl": round(today_gross_pnl, 2),
         "today_charges": round(today_charges, 2),
         "today_pnl": round(today_pnl, 2),
+        "open_unrealized_pnl": open_unrealized_pnl,
+        "live_today_pnl": live_today_pnl,
         "final_amount": round(broker_balance + today_pnl, 2),
         "broker_balance": round(broker_balance, 2),
         "paper_balance": round(paper_balance, 2),
@@ -745,6 +751,10 @@ def merge_open_trade_updates(combined_rows: list[dict], open_trades: list[dict])
             row["exit_time"] = ""
             row["result"] = trade.get("status", "OPEN")
             row["trade_status"] = "OPEN"
+            row["pnl"] = trade.get("live_pnl") if trade.get("live_pnl") is not None else trade.get("unrealized_pnl", 0.0)
+            row["gross_pnl"] = trade.get("unrealized_pnl", 0.0)
+            row["current_price"] = trade.get("current_price")
+            row["profit_percent"] = trade.get("profit_percent")
             combined_rows.append(row)
             continue
 
@@ -753,6 +763,10 @@ def merge_open_trade_updates(combined_rows: list[dict], open_trades: list[dict])
                 row[field] = trade[field]
         row["result"] = trade.get("status", row.get("result", "OPEN"))
         row["trade_status"] = "OPEN"
+        row["pnl"] = trade.get("live_pnl") if trade.get("live_pnl") is not None else trade.get("unrealized_pnl", 0.0)
+        row["gross_pnl"] = trade.get("unrealized_pnl", 0.0)
+        row["current_price"] = trade.get("current_price")
+        row["profit_percent"] = trade.get("profit_percent")
 
     return combined_rows
 
@@ -853,13 +867,24 @@ def build_dashboard_data() -> dict:
     else:
         open_trades = []
     open_trades = filter_rows_for_mode(open_trades, active_mode)
+    for ot in open_trades:
+        entry_p = float(ot.get("entry_price") or 0)
+        curr_p = float(ot.get("current_price") or ot.get("last_monitor_price") or entry_p)
+        rem_q = int(ot.get("remaining_quantity") or ot.get("quantity") or 0)
+        unrealized = round((curr_p - entry_p) * rem_q, 2) if entry_p and rem_q else 0.0
+        booked = float(ot.get("partial_realized_pnl") or 0.0)
+        ot["current_price"] = curr_p
+        ot["unrealized_pnl"] = ot.get("unrealized_pnl") if ot.get("unrealized_pnl") is not None else unrealized
+        ot["live_pnl"] = ot.get("live_pnl") if ot.get("live_pnl") is not None else round(unrealized + booked, 2)
+        ot["profit_percent"] = ot.get("profit_percent") if ot.get("profit_percent") is not None else (round(((curr_p - entry_p) / entry_p) * 100, 2) if entry_p else 0.0)
+
     account_status = load_active_account_status(active_mode)
     paper_account = build_paper_account()
     performance = calculate_performance(mode_trade_history)
 
     today_data = read_day_data(today, active_mode)
     today_data["combined_trades"] = merge_open_trade_updates(today_data["combined_trades"], open_trades)
-    active_account = active_account_summary(account_status, paper_account, today_data["performance"], active_mode)
+    active_account = active_account_summary(account_status, paper_account, today_data["performance"], active_mode, open_trades=open_trades)
 
     if not mode_trade_history and today_data.get("trade_history"):
         mode_trade_history = today_data["trade_history"]

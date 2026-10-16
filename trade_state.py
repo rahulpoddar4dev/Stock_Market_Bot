@@ -695,9 +695,21 @@ def monitor_dynamic_exit(fyers, trade: dict, current_price: float) -> dict:
     else:
         exit_reason = ""
 
+    entry_price = float(trade.get("entry_price") or current_price)
+    unrealized_pnl = round((current_price - entry_price) * remaining_quantity, 2)
+    booked_pnl = float(trade.get("partial_realized_pnl") or 0)
+    live_pnl = round(unrealized_pnl + booked_pnl, 2)
+    pnl_sign = "+" if live_pnl > 0 else ""
+    pct_sign = "+" if metrics["profit_percent"] > 0 else ""
+
+    trade["current_price"] = round(current_price, 2)
+    trade["profit_percent"] = metrics["profit_percent"]
+    trade["unrealized_pnl"] = unrealized_pnl
+    trade["live_pnl"] = live_pnl
+
     exit_decision_reason = (
-        f"DYNAMIC HOLD: current Rs {current_price}, SL Rs {stop_loss}, profit {metrics['profit_percent']}%, "
-        f"peak {metrics['peak_profit_percent']}%, pullback {metrics['pullback_from_peak']}%, "
+        f"DYNAMIC HOLD: current Rs {current_price}, SL Rs {stop_loss}, profit {pct_sign}{metrics['profit_percent']}%, "
+        f"Live P&L Rs {pnl_sign}{live_pnl}, peak {metrics['peak_profit_percent']}%, pullback {metrics['pullback_from_peak']}%, "
         f"price_fading={metrics['price_fading']}, weak_depth={metrics['weak_depth']}, "
         f"remaining qty {remaining_quantity}."
     )
@@ -710,9 +722,10 @@ def monitor_dynamic_exit(fyers, trade: dict, current_price: float) -> dict:
         ("Exit Mode", "DYNAMIC"),
         ("Opened At", trade.get("opened_at")),
         ("Entry", f"Rs {trade['entry_price']}"),
-        ("Current", f"Rs {current_price}"),
+        ("Current LTP", f"Rs {current_price}"),
+        ("Live P&L", f"Rs {pnl_sign}{live_pnl} ({pct_sign}{metrics['profit_percent']}%)"),
         ("Highest Seen", f"Rs {metrics['highest_price']}"),
-        ("Profit", f"{metrics['profit_percent']}%"),
+        ("Profit", f"{pct_sign}{metrics['profit_percent']}%"),
         ("Peak Profit", f"{metrics['peak_profit_percent']}%"),
         ("Pullback", f"{metrics['pullback_from_peak']}%"),
         ("Safe SL", f"Rs {stop_loss}"),
@@ -1497,10 +1510,21 @@ def monitor_open_trade(fyers, trade: dict | None = None) -> dict | None:
     target_stage = int(trade.get("target_stage") or 0)
     remaining_quantity = int(trade.get("remaining_quantity") or trade.get("quantity") or 0)
     profit_percent = round(((current_price - entry_price) / entry_price) * 100, 2) if entry_price else 0
+    unrealized_pnl = round((current_price - entry_price) * remaining_quantity, 2)
+    booked_pnl = float(trade.get("partial_realized_pnl") or 0)
+    live_pnl = round(unrealized_pnl + booked_pnl, 2)
+    pnl_sign = "+" if live_pnl > 0 else ""
+    pct_sign = "+" if profit_percent > 0 else ""
+
+    trade["current_price"] = round(current_price, 2)
+    trade["profit_percent"] = profit_percent
+    trade["unrealized_pnl"] = unrealized_pnl
+    trade["live_pnl"] = live_pnl
+
     ride_mode = "FULL_RIDE_SHADOW" if trade.get("full_position_ride_active") else "PARTIAL_HYBRID"
     exit_decision_reason = (
         f"HOLD ({ride_mode}): current Rs {current_price}, final target Rs {target}, current SL Rs {stop_loss}, "
-        f"stage {target_stage}, profit {profit_percent}%, remaining qty {remaining_quantity}."
+        f"stage {target_stage}, profit {pct_sign}{profit_percent}%, Live P&L Rs {pnl_sign}{live_pnl}, remaining qty {remaining_quantity}."
     )
 
     table("OPEN TRADE MONITOR", [
@@ -1515,8 +1539,9 @@ def monitor_open_trade(fyers, trade: dict | None = None) -> dict | None:
         ("Lots", trade.get("lots", "N/A")),
         ("Quantity", trade.get("quantity")),
         ("Remaining Qty", remaining_quantity),
-        ("Booked P&L", f"Rs {trade.get('partial_realized_pnl', 0)}"),
-        ("Current", f"Rs {current_price}"),
+        ("Current LTP", f"Rs {current_price}"),
+        ("Live P&L", f"Rs {pnl_sign}{live_pnl} ({pct_sign}{profit_percent}%)"),
+        ("Booked P&L", f"Rs {booked_pnl}"),
         ("Target 1", f"Rs {target_1}" if target_1 else "N/A"),
         ("Target 2", f"Rs {target_2}" if target_2 else "N/A"),
         ("Final Target", f"Rs {target}"),
