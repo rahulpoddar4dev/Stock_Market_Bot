@@ -494,8 +494,10 @@ def _hard_reject_reasons(quote: dict, depth: dict, premium: dict, entry: dict, s
         reasons.append(f"risk reward {targets['risk_reward']} < {config.OPTION_CHAIN_MIN_RISK_REWARD}")
     if float(entry["entry_price"]) >= float(targets["target"]):
         reasons.append("current/entry price already at or above target")
-    if premium["day_high"] and float(entry["entry_price"]) >= premium["day_high"] * (1 - (config.OPTION_CHAIN_REJECT_NEAR_TARGET_BUFFER_PERCENT / 100)):
-        reasons.append("premium already near day high/target zone")
+    buffer_pct = float(getattr(config, "OPTION_CHAIN_REJECT_NEAR_TARGET_BUFFER_PERCENT", 0.0) or 0.0)
+    if buffer_pct > 0 and premium.get("day_high") and float(entry["entry_price"]) >= premium["day_high"] * (1 - (buffer_pct / 100)):
+        if float(targets.get("potential_left_percent") or 0) < 15.0:
+            reasons.append("premium already near day high and target potential is exhausted")
     if getattr(config, "OPTION_REQUIRE_ABOVE_VWAP", True):
         vwap_val = float(premium.get("vwap") or 0)
         tolerance = float(getattr(config, "OPTION_VWAP_TOLERANCE_PERCENT", 0.5)) / 100

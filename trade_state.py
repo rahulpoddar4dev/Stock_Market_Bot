@@ -927,48 +927,43 @@ def check_time_based_exit(trade: dict, current_price: float) -> tuple[bool, str]
     peak_profit = ((highest_price - entry_price) / entry_price) * 100 if entry_price else 0
     trade["peak_profit_percent"] = round(peak_profit, 2)
 
-    # v5 Smart Structure Hold Exemption:
-    # When live 5m/10m/15m chart structure & option support are intact and trade is not breaking down,
-    # do NOT force-exit on a blind 10m or 20m timer. Hold as long as market structure supports the trade!
-    if (
-        getattr(config, "LIVE_STRUCTURE_HOLD_EXEMPTION_ENABLED", True)
-        and trade.get("live_chart_trend_intact") is True
-        and not trade.get("live_structure_reversal", False)
-        and profit_percent >= -3.0
-    ):
-        return False, ""
-
-    # 1. Dynamic Momentum Stall Exit (e.g. 10m):
-    # If trade has zero forward momentum progress after stall minutes, exit before theta decay bleeds capital
-    stall_minutes = float(getattr(config, "DYNAMIC_STALL_MINUTES", 10) or 10)
+    # 1. Dynamic Momentum Stall Exit (e.g. 10m - 12m):
+    # Pure Option Buyers cannot hold stagnant positions: exit before theta decay bleeds capital
+    stall_minutes = float(getattr(config, "DYNAMIC_STALL_MINUTES", 12) or 12)
     if getattr(config, "DYNAMIC_MOMENTUM_EXIT_ENABLED", True) and opened_minutes >= stall_minutes:
         min_peak = float(getattr(config, "DYNAMIC_STALL_MIN_PEAK_PROFIT_PERCENT", 2.5) or 2.5)
         max_profit = float(getattr(config, "DYNAMIC_STALL_MAX_PROFIT_PERCENT", 0.5) or 0.5)
         if peak_profit < min_peak and profit_percent <= max_profit:
             reason = (
-                f"Momentum stall exit: Trade held for {round(opened_minutes, 1)}m with zero progress "
+                f"Momentum stall exit (Theta defense): Trade held for {round(opened_minutes, 1)}m with zero momentum "
                 f"(peak profit {round(peak_profit, 2)}% < +{min_peak}%, current {round(profit_percent, 2)}%). "
-                f"Exiting before theta decay destroys capital."
+                f"Exiting to preserve option capital from time decay."
             )
             return True, reason
 
-    # 2. Active Breakout Surge Exemption:
-    # If price is within DYNAMIC_BREAKOUT_EXEMPTION_PERCENT of highest price and expanding, do not exit!
-    exemption_ratio = float(getattr(config, "DYNAMIC_BREAKOUT_EXEMPTION_PERCENT", 0.8) or 0.8) / 100
-    is_active_breakout = (current_price >= highest_price * (1 - exemption_ratio)) and profit_percent > 2.0
-
-    # 3. Maximum Time Limit (e.g. 20m):
+    # 2. Maximum Time Limit (e.g. 20m):
     minutes_limit = float(getattr(config, "TIME_BASED_EXIT_MINUTES", 20) or 20)
     if minutes_limit > 0 and opened_minutes >= minutes_limit:
-        if is_active_breakout:
-            return False, ""
-        min_profit = float(getattr(config, "TIME_BASED_EXIT_MIN_PROFIT_PERCENT", 4.0) or 4.0)
-        if profit_percent < min_profit:
-            reason = (
-                f"Trade held for {round(opened_minutes, 1)}m (>={minutes_limit}m) "
-                f"with insufficient momentum (profit {round(profit_percent, 2)}% < +{min_profit}%)."
-            )
-            return True, reason
+        exemption_ratio = float(getattr(config, "DYNAMIC_BREAKOUT_EXEMPTION_PERCENT", 0.8) or 0.8) / 100
+        is_active_breakout = (current_price >= highest_price * (1 - exemption_ratio)) and profit_percent > 2.0
+        if not is_active_breakout:
+            min_profit = float(getattr(config, "TIME_BASED_EXIT_MIN_PROFIT_PERCENT", 3.5) or 3.5)
+            if profit_percent < min_profit:
+                reason = (
+                    f"Theta/Time exit: Trade held for {round(opened_minutes, 1)}m (>={minutes_limit}m) "
+                    f"with stagnant momentum (profit {round(profit_percent, 2)}% < +{min_profit}%)."
+                )
+                return True, reason
+
+    # 3. Smart Structure Hold Exemption:
+    # When live 5m/10m/15m chart structure is intact and trade is healthy, hold as long as momentum is active
+    if (
+        getattr(config, "LIVE_STRUCTURE_HOLD_EXEMPTION_ENABLED", True)
+        and trade.get("live_chart_trend_intact") is True
+        and not trade.get("live_structure_reversal", False)
+        and profit_percent >= -2.0
+    ):
+        return False, ""
 
     return False, ""
 
