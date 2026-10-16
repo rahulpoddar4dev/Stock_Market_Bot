@@ -78,13 +78,25 @@ def is_price_overextended(latest: dict, signal: str) -> tuple[bool, str, dict]:
     vwap = float(latest.get("vwap") or 0)
     ema_distance = pct_distance(close, ema_9)
     vwap_distance = pct_distance(close, vwap)
-    max_ema = float(getattr(config, "MAX_ENTRY_DISTANCE_FROM_EMA9_PERCENT", 0.50))
-    max_vwap = float(getattr(config, "MAX_ENTRY_DISTANCE_FROM_VWAP_PERCENT", 1.00))
+    max_ema = float(getattr(config, "MAX_ENTRY_DISTANCE_FROM_EMA9_PERCENT", 0.85))
+    max_vwap = float(getattr(config, "MAX_ENTRY_DISTANCE_FROM_VWAP_PERCENT", 1.75))
 
+    # Overextended means price has run away excessively from the trend moving average (EMA9)
+    # AND is also far from VWAP, or price is abnormally detached from VWAP (> max_vwap * 1.5).
+    # If price is resting on or pulling back to EMA9 (ema_distance <= max_ema * 0.5), it is a valid trend pullback,
+    # and NOT overextended regardless of opening VWAP distance!
     if signal == "BUY":
-        overextended = (close > ema_9 and ema_distance > max_ema) or (close > vwap and vwap_distance > max_vwap)
+        ema_blown = close > ema_9 and ema_distance > max_ema
+        vwap_blown = close > vwap and vwap_distance > max_vwap
+        extreme_vwap = close > vwap and vwap_distance > (max_vwap * 1.5)
+        is_ema_pullback = ema_distance <= (max_ema * 0.5)
+        overextended = (ema_blown and vwap_blown) or (extreme_vwap and not is_ema_pullback)
     elif signal == "SELL":
-        overextended = (close < ema_9 and ema_distance > max_ema) or (close < vwap and vwap_distance > max_vwap)
+        ema_blown = close < ema_9 and ema_distance > max_ema
+        vwap_blown = close < vwap and vwap_distance > max_vwap
+        extreme_vwap = close < vwap and vwap_distance > (max_vwap * 1.5)
+        is_ema_pullback = ema_distance <= (max_ema * 0.5)
+        overextended = (ema_blown and vwap_blown) or (extreme_vwap and not is_ema_pullback)
     else:
         overextended = False
 
@@ -172,7 +184,7 @@ def _latest_index(candles: list[dict], latest: dict) -> int:
 
 
 def _fresh_cross(recent: list[dict], signal: str) -> bool:
-    lookback = int(getattr(config, "FRESH_SIGNAL_CANDLES", 2) or 2)
+    lookback = int(getattr(config, "FRESH_SIGNAL_CANDLES", 3) or 3)
     pairs = list(zip(recent[-lookback - 1:-1], recent[-lookback:]))
     for previous, current in pairs:
         prev_close = float(previous.get("close") or 0)
@@ -197,29 +209,41 @@ def _retest_entry(recent: list[dict], signal: str) -> bool:
     low = float(latest.get("low") or 0)
     high = float(latest.get("high") or 0)
     ema_9 = float(latest.get("ema_9") or 0)
+    ema_21 = float(latest.get("ema_21") or ema_9)
     vwap = float(latest.get("vwap") or 0)
     prev_close = float(previous.get("close") or 0)
     prev_ema = float(previous.get("ema_9") or 0)
     prev_vwap = float(previous.get("vwap") or 0)
-    tolerance = float(getattr(config, "RETEST_TOUCH_TOLERANCE_PERCENT", 0.08) or 0.08) / 100
+    tolerance = float(getattr(config, "RETEST_TOUCH_TOLERANCE_PERCENT", 0.20) or 0.20) / 100
 
     if signal == "BUY":
-        prior_breakout = prev_close > prev_ema and prev_close > prev_vwap
-        touched = low <= ema_9 * (1 + tolerance) or low <= vwap * (1 + tolerance)
-        return prior_breakout and touched and close > ema_9 and close > vwap and candle_is_bullish(latest)
+        prior_breakout = prev_close >= min(prev_ema, prev_vwap)
+        touched = (
+            low <= ema_9 * (1 + tolerance)
+            or low <= ema_21 * (1 + tolerance)
+            or low <= vwap * (1 + tolerance)
+        )
+        bounced = close > min(ema_9, ema_21) and candle_is_bullish(latest)
+        return prior_breakout and touched and bounced
 
-    prior_breakdown = prev_close < prev_ema and prev_close < prev_vwap
-    touched = high >= ema_9 * (1 - tolerance) or high >= vwap * (1 - tolerance)
-    return prior_breakdown and touched and close < ema_9 and close < vwap and candle_is_bearish(latest)
+    prior_breakdown = prev_close <= max(prev_ema, prev_vwap)
+    touched = (
+        high >= ema_9 * (1 - tolerance)
+        or high >= ema_21 * (1 - tolerance)
+        or high >= vwap * (1 - tolerance)
+    )
+    rejected = close < max(ema_9, ema_21) and candle_is_bearish(latest)
+    return prior_breakdown and touched and rejected
 
 
 def _continuation_entry(latest: dict, signal: str) -> bool:
     close = float(latest.get("close") or 0)
     ema_9 = float(latest.get("ema_9") or 0)
+    ema_21 = float(latest.get("ema_21") or ema_9)
     vwap = float(latest.get("vwap") or 0)
     adx = float(latest.get("adx_14") or 0)
     overextended, _, _ = is_price_overextended(latest, signal)
-    min_adx = float(getattr(config, "CONTINUATION_MIN_ADX", 16.0))
+    min_adx = float(getattr(config, "CONTINUATION_MIN_ADX", 14.0))
     if overextended or adx < min_adx:
         return False
     if signal == "BUY":

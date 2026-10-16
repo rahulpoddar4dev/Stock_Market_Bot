@@ -220,12 +220,18 @@ def _apply_pattern_confirmation(
 
     if config.CANDLE_PATTERN_BLOCK_CONFLICT and conflicts:
         opposite = "bearish" if signal == "BUY" else "bullish"
-        return _hold(
-            f"Candlestick conflict: {signal} blocked because strong {opposite} pattern is present. "
-            f"Patterns: {pattern_text}. Bullish score {bullish_score}, bearish score {bearish_score}.",
-            latest=signal_data,
-            htf_info=htf_info,
-        )[0], score, pattern_text
+        htf_bias = (htf_info or {}).get("bias", "UNKNOWN")
+        # Only hard-block if HTF trend is NOT strongly supporting the trade
+        if (signal == "BUY" and htf_bias != "BULLISH") or (signal == "SELL" and htf_bias != "BEARISH"):
+            return _hold(
+                f"Candlestick conflict: {signal} blocked because strong {opposite} pattern is present without HTF override. "
+                f"Patterns: {pattern_text}. Bullish score {bullish_score}, bearish score {bearish_score}.",
+                latest=signal_data,
+                htf_info=htf_info,
+            )[0], score, pattern_text
+        else:
+            # 15m HTF strongly supports trade; penalize score instead of fatal block
+            score = max(0.0, score - float(config.CANDLE_PATTERN_SCORE_PENALTY))
 
     adjusted_score = score
     if confirms:
