@@ -7,11 +7,9 @@ import threading
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, quote_plus, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import config
-from log_capture import init_log_capture
-init_log_capture()
 from account_status import load_account_status, save_account_status
 from analysis_snapshot import load_analysis_snapshot
 from fyers_login import (
@@ -64,18 +62,19 @@ def read_json(path: Path):
 
 
 def list_trade_days() -> list[str]:
-    try:
-        from database import db_get_distinct_dates, is_mongo
-        if is_mongo():
-            return sorted([str(d) for d in db_get_distinct_dates() if d], reverse=True)
-    except Exception:
-        pass
     days = set()
     by_date_dir = LOG_DIR / "by_date"
     if by_date_dir.exists():
         for path in by_date_dir.iterdir():
             if path.is_dir():
                 days.add(path.name)
+    try:
+        from database import db_get_distinct_dates
+        for d in db_get_distinct_dates():
+            if d:
+                days.add(str(d))
+    except Exception:
+        pass
     return sorted(list(days), reverse=True)
 
 
@@ -204,15 +203,13 @@ def filter_rows_for_mode(rows: list[dict], mode: str) -> list[dict]:
     return [row for row in rows if row_matches_mode(row, mode)]
 
 
-def active_account_summary(account_status: dict, paper_account: dict, today_performance: dict, mode: str, open_trades: list[dict] | None = None) -> dict:
+def active_account_summary(account_status: dict, paper_account: dict, today_performance: dict, mode: str) -> dict:
     broker_balance = float(account_status.get("broker_balance") or account_status.get("available_balance") or 0)
     paper_balance = float(paper_account.get("available_balance") or 0)
     today_pnl = float(today_performance.get("total_pnl") or 0)
     today_charges = float(today_performance.get("total_charges") or 0)
     today_gross_pnl = float(today_performance.get("gross_pnl") or 0)
     status_mode = str(account_status.get("mode") or "").upper()
-    open_unrealized_pnl = round(sum(float(t.get("unrealized_pnl") or 0.0) for t in (open_trades or [])), 2)
-    live_today_pnl = round(today_pnl + open_unrealized_pnl, 2)
 
     if mode == "PAPER":
         final_amount = paper_balance
@@ -224,8 +221,6 @@ def active_account_summary(account_status: dict, paper_account: dict, today_perf
             "today_gross_pnl": round(today_gross_pnl, 2),
             "today_charges": round(today_charges, 2),
             "today_pnl": round(today_pnl, 2),
-            "open_unrealized_pnl": open_unrealized_pnl,
-            "live_today_pnl": live_today_pnl,
             "final_amount": round(final_amount, 2),
             "broker_balance": broker_balance,
             "paper_balance": round(paper_balance, 2),
@@ -241,8 +236,6 @@ def active_account_summary(account_status: dict, paper_account: dict, today_perf
         "today_gross_pnl": round(today_gross_pnl, 2),
         "today_charges": round(today_charges, 2),
         "today_pnl": round(today_pnl, 2),
-        "open_unrealized_pnl": open_unrealized_pnl,
-        "live_today_pnl": live_today_pnl,
         "final_amount": round(broker_balance + today_pnl, 2),
         "broker_balance": round(broker_balance, 2),
         "paper_balance": round(paper_balance, 2),
@@ -287,38 +280,21 @@ def load_active_account_status(mode: str) -> dict:
     return account_status
 
 
-_FYERS_STATUS_CACHE = {"status": None, "at": 0.0}
-
-
-def fyers_session_status(force_refresh: bool = False) -> dict:
-    global _FYERS_STATUS_CACHE
-    now = time.time()
-    if not force_refresh and _FYERS_STATUS_CACHE["status"] is not None and (now - _FYERS_STATUS_CACHE["at"]) < 5.0:
-        return _FYERS_STATUS_CACHE["status"]
-
+def fyers_session_status() -> dict:
     try:
         fyers_client = try_saved_login(silent=True)
         if not fyers_client:
-            res = {"active": False, "message": "Fyers login needed"}
-            _FYERS_STATUS_CACHE = {"status": res, "at": now}
-            return res
+            return {"active": False, "message": "Fyers login needed"}
         profile = fyers_client.profile()
-        res = {
-            "active": True,
-            "message": "Fyers session active",
-            "user_name": profile.get("user_name"),
-            "user_id": profile.get("user_id"),
-        }
     except Exception as error:
-        res = {"active": False, "message": str(error)}
+        return {"active": False, "message": str(error)}
 
-    _FYERS_STATUS_CACHE = {"status": res, "at": now}
-    return res
-
-
-def clear_fyers_session_cache():
-    global _FYERS_STATUS_CACHE
-    _FYERS_STATUS_CACHE = {"status": None, "at": 0.0}
+    return {
+        "active": True,
+        "message": "Fyers session active",
+        "user_name": profile.get("user_name"),
+        "user_id": profile.get("user_id"),
+    }
 
 
 
@@ -750,10 +726,6 @@ def merge_open_trade_updates(combined_rows: list[dict], open_trades: list[dict])
             row["exit_time"] = ""
             row["result"] = trade.get("status", "OPEN")
             row["trade_status"] = "OPEN"
-            row["pnl"] = trade.get("live_pnl") if trade.get("live_pnl") is not None else trade.get("unrealized_pnl", 0.0)
-            row["gross_pnl"] = trade.get("unrealized_pnl", 0.0)
-            row["current_price"] = trade.get("current_price")
-            row["profit_percent"] = trade.get("profit_percent")
             combined_rows.append(row)
             continue
 
@@ -762,21 +734,23 @@ def merge_open_trade_updates(combined_rows: list[dict], open_trades: list[dict])
                 row[field] = trade[field]
         row["result"] = trade.get("status", row.get("result", "OPEN"))
         row["trade_status"] = "OPEN"
-        row["pnl"] = trade.get("live_pnl") if trade.get("live_pnl") is not None else trade.get("unrealized_pnl", 0.0)
-        row["gross_pnl"] = trade.get("unrealized_pnl", 0.0)
-        row["current_price"] = trade.get("current_price")
-        row["profit_percent"] = trade.get("profit_percent")
 
     return combined_rows
 
 
 def read_day_data(day: str, mode: str | None = None) -> dict:
+    day_dir = LOG_DIR / "by_date" / day
+    trade_history = read_csv(day_dir / "trade_history.csv", limit=300)
+    paper_trades = read_csv(day_dir / "paper_option_trades.csv", limit=300)
+    no_trade_decisions = read_csv(day_dir / "no_trade_decisions.csv", limit=300)
+    ghost_trades = read_csv(day_dir / "ghost_trades.csv", limit=300)
+
     try:
-        from database import db_get_trades_for_date, db_get_decisions_for_date, is_mongo
-        if is_mongo():
-            db_trades = db_get_trades_for_date(day, mode)
+        from database import db_get_trades_for_date, db_get_decisions_for_date
+        db_trades = db_get_trades_for_date(day, mode)
+        if not trade_history and db_trades:
             formatted_trades = []
-            for t in (db_trades or []):
+            for t in db_trades:
                 row = dict(t)
                 row["date"] = t.get("date")
                 row["time"] = t.get("time")
@@ -807,41 +781,22 @@ def read_day_data(day: str, mode: str | None = None) -> dict:
                 row["exit_time"] = str(t.get("closed_at", ""))[-8:] if t.get("closed_at") else ""
                 row["mode"] = t.get("mode")
                 formatted_trades.append(row)
-
             trade_history = formatted_trades
-            paper_trades = formatted_trades if mode in {"PAPER", None} else []
+            if not paper_trades and mode in {"PAPER", None}:
+                paper_trades = formatted_trades
 
+        if not no_trade_decisions:
             db_decisions = db_get_decisions_for_date(day)
-            formatted_decisions = []
-            for d in (db_decisions or []):
-                d_row = dict(d)
-                d_row["reason"] = d.get("blocked_reason")
-                d_row["final_score"] = d.get("setup_score")
-                formatted_decisions.append(d_row)
-            no_trade_decisions = formatted_decisions
-
-            paper_trades = enrich_rows(paper_trades)
-            trade_history = enrich_rows(trade_history, paper_trades)
-            if mode:
-                trade_history = filter_rows_for_mode(trade_history, mode)
-                paper_trades = filter_rows_for_mode(paper_trades, mode)
-            return {
-                "day": day,
-                "performance": calculate_performance(trade_history),
-                "trade_history": trade_history,
-                "combined_trades": combine_trade_rows(trade_history),
-                "paper_trades": paper_trades,
-                "no_trade_decisions": no_trade_decisions,
-                "ghost_trades": [],
-            }
+            if db_decisions:
+                formatted_decisions = []
+                for d in db_decisions:
+                    d_row = dict(d)
+                    d_row["reason"] = d.get("blocked_reason")
+                    d_row["final_score"] = d.get("setup_score")
+                    formatted_decisions.append(d_row)
+                no_trade_decisions = formatted_decisions
     except Exception:
         pass
-
-    day_dir = LOG_DIR / "by_date" / day
-    trade_history = read_csv(day_dir / "trade_history.csv", limit=300)
-    paper_trades = read_csv(day_dir / "paper_option_trades.csv", limit=300)
-    no_trade_decisions = read_csv(day_dir / "no_trade_decisions.csv", limit=300)
-    ghost_trades = read_csv(day_dir / "ghost_trades.csv", limit=300)
 
     paper_trades = enrich_rows(paper_trades)
     trade_history = enrich_rows(trade_history, paper_trades)
@@ -863,6 +818,14 @@ def build_dashboard_data() -> dict:
     apply_runtime_settings(config)
     active_mode = config.TRADING_MODE
     today = today_date().isoformat()
+    trade_history = read_csv(LOG_DIR / "trade_history.csv", limit=200)
+    paper_trades = read_csv(LOG_DIR / "paper_option_trades.csv", limit=200)
+    no_trade_decisions = read_csv(LOG_DIR / "no_trade_decisions.csv", limit=200)
+    ghost_trades = read_csv(LOG_DIR / "ghost_trades.csv", limit=200)
+    paper_trades = enrich_rows(paper_trades)
+    trade_history = enrich_rows(trade_history, paper_trades)
+    mode_trade_history = filter_rows_for_mode(trade_history, active_mode)
+    mode_paper_trades = filter_rows_for_mode(paper_trades, active_mode)
     open_state = read_json(OPEN_TRADE_FILE)
     if isinstance(open_state, list):
         open_trades = [trade for trade in open_state if trade.get("status") in {"OPEN", "LIVE_OPEN", "LIVE_PENDING"}]
@@ -871,54 +834,21 @@ def build_dashboard_data() -> dict:
     else:
         open_trades = []
     open_trades = filter_rows_for_mode(open_trades, active_mode)
-    for ot in open_trades:
-        entry_p = float(ot.get("entry_price") or 0)
-        curr_p = float(ot.get("current_price") or ot.get("last_monitor_price") or entry_p)
-        rem_q = int(ot.get("remaining_quantity") or ot.get("quantity") or 0)
-        unrealized = round((curr_p - entry_p) * rem_q, 2) if entry_p and rem_q else 0.0
-        booked = float(ot.get("partial_realized_pnl") or 0.0)
-        ot["current_price"] = curr_p
-        ot["unrealized_pnl"] = ot.get("unrealized_pnl") if ot.get("unrealized_pnl") is not None else unrealized
-        ot["live_pnl"] = ot.get("live_pnl") if ot.get("live_pnl") is not None else round(unrealized + booked, 2)
-        ot["profit_percent"] = ot.get("profit_percent") if ot.get("profit_percent") is not None else (round(((curr_p - entry_p) / entry_p) * 100, 2) if entry_p else 0.0)
-
     account_status = load_active_account_status(active_mode)
     paper_account = build_paper_account()
+    performance = calculate_performance(mode_trade_history)
 
     today_data = read_day_data(today, active_mode)
     today_data["combined_trades"] = merge_open_trade_updates(today_data["combined_trades"], open_trades)
-    active_account = active_account_summary(account_status, paper_account, today_data["performance"], active_mode, open_trades=open_trades)
+    active_account = active_account_summary(account_status, paper_account, today_data["performance"], active_mode)
 
-    try:
-        from database import is_mongo
-        if is_mongo():
-            mode_trade_history = today_data["trade_history"]
-            mode_paper_trades = today_data["paper_trades"]
-            no_trade_decisions = today_data["no_trade_decisions"]
-            performance = today_data["performance"]
-        else:
-            trade_history = read_csv(LOG_DIR / "trade_history.csv", limit=200)
-            paper_trades = read_csv(LOG_DIR / "paper_option_trades.csv", limit=200)
-            no_trade_decisions = read_csv(LOG_DIR / "no_trade_decisions.csv", limit=200)
-            ghost_trades = read_csv(LOG_DIR / "ghost_trades.csv", limit=200)
-            paper_trades = enrich_rows(paper_trades)
-            trade_history = enrich_rows(trade_history, paper_trades)
-            mode_trade_history = filter_rows_for_mode(trade_history, active_mode)
-            mode_paper_trades = filter_rows_for_mode(paper_trades, active_mode)
-            performance = calculate_performance(mode_trade_history)
-            if not mode_trade_history and today_data.get("trade_history"):
-                mode_trade_history = today_data["trade_history"]
-                performance = today_data["performance"]
-            if not mode_paper_trades and today_data.get("paper_trades"):
-                mode_paper_trades = today_data["paper_trades"]
-            if not no_trade_decisions and today_data.get("no_trade_decisions"):
-                no_trade_decisions = today_data["no_trade_decisions"]
-    except Exception:
+    if not mode_trade_history and today_data.get("trade_history"):
         mode_trade_history = today_data["trade_history"]
-        mode_paper_trades = today_data["paper_trades"]
-        no_trade_decisions = today_data["no_trade_decisions"]
         performance = today_data["performance"]
-    ghost_trades = []
+    if not mode_paper_trades and today_data.get("paper_trades"):
+        mode_paper_trades = today_data["paper_trades"]
+    if not no_trade_decisions and today_data.get("no_trade_decisions"):
+        no_trade_decisions = today_data["no_trade_decisions"]
 
     return {
         "config": {
@@ -1017,95 +947,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     self.send_fyers_login_page(f"Fyers login failed: {login_error}", success=False)
                     return
 
-        if path == "/api/auth-status":
-            session = fyers_session_status()
-            db_conn = False
-            try:
-                from database import is_mongo
-                db_conn = is_mongo()
-            except Exception:
-                pass
-            self.send_json({
-                "active": bool(session.get("active")),
-                "user_name": session.get("user_name"),
-                "user_id": session.get("user_id"),
-                "db_status": {
-                    "engine": "MongoDB Atlas" if db_conn else "SQLite Fallback",
-                    "connected": db_conn,
-                }
-            })
-            return
-
         if path == "/" or path == "/index.html":
-            session = fyers_session_status()
-            if not session.get("active"):
-                self.redirect("/login")
-                return
             self.send_html()
             return
 
-        if path == "/login":
-            session = fyers_session_status()
-            if session.get("active"):
-                self.redirect("/")
-                return
-            self.send_login_html()
-            return
-
-        if path == "/logs":
-            session = fyers_session_status()
-            if not session.get("active"):
-                self.redirect("/login")
-                return
-            self.send_logs_html()
-            return
-
-        if path == "/api/logs":
-            session = fyers_session_status()
-            if not session.get("active"):
-                self.send_json({"authenticated": False, "redirect": "/login"}, status=401)
-                return
-            from log_capture import read_live_logs
-            date_str, size_str, content = read_live_logs()
-            self.send_json({"date": date_str, "size_kb": size_str, "content": content})
-            return
-
-        if path == "/api/logs/raw":
-            session = fyers_session_status()
-            if not session.get("active"):
-                self.redirect("/login")
-                return
-            from log_capture import read_live_logs
-            _, _, content = read_live_logs()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(content.encode("utf-8", errors="replace"))
-            return
-
-        if path == "/api/logs/download":
-            session = fyers_session_status()
-            if not session.get("active"):
-                self.redirect("/login")
-                return
-            from log_capture import read_live_logs
-            date_str, _, content = read_live_logs()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.send_header("Content-Disposition", f'attachment; filename="bot_logs_{date_str}.txt"')
-            self.end_headers()
-            self.wfile.write(content.encode("utf-8", errors="replace"))
-            return
-
         if path == "/api/dashboard":
-            session = fyers_session_status()
-            if not session.get("active"):
-                self.send_json({"authenticated": False, "redirect": "/login"}, status=401)
-                return
             self.send_json(build_dashboard_data())
             return
 
-        if path in {"/fyers/login", "/fyers/oauth"}:
+        if path in {"/fyers/login", "/login"}:
             self.redirect(get_fyers_login_url())
             return
 
@@ -1113,8 +963,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             logout()
             _BROKER_ACCOUNT_CACHE["status"] = None
             _BROKER_ACCOUNT_CACHE["at"] = 0.0
-            clear_fyers_session_cache()
-            self.redirect("/login?logged_out=true")
+            self.redirect(get_fyers_login_url())
             return
 
         if path in {"/callback", "/fyers/callback"}:
@@ -1122,10 +971,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/day":
-            session = fyers_session_status()
-            if not session.get("active"):
-                self.send_json({"authenticated": False, "redirect": "/login"}, status=401)
-                return
             params = parse_qs(parsed.query)
             day = params.get("date", [""])[0]
             if not day:
@@ -1142,15 +987,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_json(read_day_data(day))
             return
 
-        if path in {"/api/reset-data", "/api/reset-database", "/api/clear-data"}:
-            try:
-                from database import db_reset_all_data
-                res = db_reset_all_data(preserve_config=True)
-                self.send_json({"ok": True, "message": "All database records and logs cleared successfully", "details": res})
-            except Exception as e:
-                self.send_json({"ok": False, "error": str(e)}, status=500)
-            return
-
         self.send_json({"error": "Not found"})
 
     def handle_fyers_callback(self, parsed):
@@ -1164,30 +1000,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
         error = params.get("message", [""])[0] or params.get("error", [""])[0]
 
         if not auth_code or status not in {"", "ok", "200", "success"}:
-            err_msg = error or "Fyers login did not return an auth code."
-            self.redirect(f"/login?error={quote_plus(err_msg)}")
+            self.send_fyers_login_page(
+                error or "Fyers login did not return an auth code.",
+                success=False,
+            )
             return
 
         try:
             process_auth_code(auth_code)
-            clear_fyers_session_cache()
-            self.redirect("/")
-            return
         except Exception as login_error:
-            self.redirect(f"/login?error={quote_plus(str(login_error))}")
+            self.send_fyers_login_page(f"Fyers login failed: {login_error}", success=False)
             return
+
+        self.send_fyers_login_page("Fyers login successful.", success=True)
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path in {"/api/reset-data", "/api/reset-database", "/api/clear-data"}:
-            try:
-                from database import db_reset_all_data
-                res = db_reset_all_data(preserve_config=True)
-                self.send_json({"ok": True, "message": "All database records and logs cleared successfully", "details": res})
-            except Exception as error:
-                self.send_json({"ok": False, "error": str(error)}, status=500)
-            return
-
         if parsed.path in {"/api/fyers/submit-token", "/api/submit-token"}:
             length = int(self.headers.get("Content-Length", "0") or 0)
             body = self.rfile.read(length).decode("utf-8") if length else "{}"
@@ -1202,7 +1030,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     or ""
                 )
                 res = process_auth_code(raw_value)
-                clear_fyers_session_cache()
                 self.send_json(res)
             except Exception as error:
                 self.send_json({"ok": False, "error": str(error)}, status=400)
@@ -1213,8 +1040,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 logout()
                 _BROKER_ACCOUNT_CACHE["status"] = None
                 _BROKER_ACCOUNT_CACHE["at"] = 0.0
-                clear_fyers_session_cache()
-                self.send_json({"ok": True, "message": "Logged out successfully", "login_url": "/login?logged_out=true"})
+                login_url = get_fyers_login_url()
+                self.send_json({"ok": True, "message": "Logged out successfully", "login_url": login_url})
             except Exception as error:
                 self.send_json({"ok": False, "error": str(error)}, status=400)
             return
@@ -1246,23 +1073,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def send_html(self):
         html_path = BASE_DIR / "dashboard.html"
-        body = html_path.read_text(encoding="utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(body.encode("utf-8"))
-
-    def send_login_html(self):
-        login_path = BASE_DIR / "login.html"
-        body = login_path.read_text(encoding="utf-8") if login_path.exists() else "<h1>Login Required</h1><a href='/fyers/login'>Login with Fyers</a>"
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(body.encode("utf-8"))
-
-    def send_logs_html(self):
-        logs_path = BASE_DIR / "logs.html"
-        body = logs_path.read_text(encoding="utf-8") if logs_path.exists() else "<h1>Logs page not found</h1>"
+        body = html_path.read_text()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
@@ -1320,19 +1131,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def create_dashboard_server():
-    reset_flag = Path("RESET_ON_DEPLOY")
-    if reset_flag.exists():
-        try:
-            from database import db_reset_all_data
-            db_reset_all_data(preserve_config=True)
-            try:
-                reset_flag.unlink()
-            except Exception:
-                pass
-            print("[DEPLOY] Successfully wiped all database records and disk caches on deploy!")
-        except Exception as e:
-            print(f"[DEPLOY ERROR] {e}")
-
     host = config.DASHBOARD_HOST
     server = None
     port = config.DASHBOARD_PORT

@@ -695,21 +695,9 @@ def monitor_dynamic_exit(fyers, trade: dict, current_price: float) -> dict:
     else:
         exit_reason = ""
 
-    entry_price = float(trade.get("entry_price") or current_price)
-    unrealized_pnl = round((current_price - entry_price) * remaining_quantity, 2)
-    booked_pnl = float(trade.get("partial_realized_pnl") or 0)
-    live_pnl = round(unrealized_pnl + booked_pnl, 2)
-    pnl_sign = "+" if live_pnl > 0 else ""
-    pct_sign = "+" if metrics["profit_percent"] > 0 else ""
-
-    trade["current_price"] = round(current_price, 2)
-    trade["profit_percent"] = metrics["profit_percent"]
-    trade["unrealized_pnl"] = unrealized_pnl
-    trade["live_pnl"] = live_pnl
-
     exit_decision_reason = (
-        f"DYNAMIC HOLD: current Rs {current_price}, SL Rs {stop_loss}, profit {pct_sign}{metrics['profit_percent']}%, "
-        f"Live P&L Rs {pnl_sign}{live_pnl}, peak {metrics['peak_profit_percent']}%, pullback {metrics['pullback_from_peak']}%, "
+        f"DYNAMIC HOLD: current Rs {current_price}, SL Rs {stop_loss}, profit {metrics['profit_percent']}%, "
+        f"peak {metrics['peak_profit_percent']}%, pullback {metrics['pullback_from_peak']}%, "
         f"price_fading={metrics['price_fading']}, weak_depth={metrics['weak_depth']}, "
         f"remaining qty {remaining_quantity}."
     )
@@ -722,10 +710,9 @@ def monitor_dynamic_exit(fyers, trade: dict, current_price: float) -> dict:
         ("Exit Mode", "DYNAMIC"),
         ("Opened At", trade.get("opened_at")),
         ("Entry", f"Rs {trade['entry_price']}"),
-        ("Current LTP", f"Rs {current_price}"),
-        ("Live P&L", f"Rs {pnl_sign}{live_pnl} ({pct_sign}{metrics['profit_percent']}%)"),
+        ("Current", f"Rs {current_price}"),
         ("Highest Seen", f"Rs {metrics['highest_price']}"),
-        ("Profit", f"{pct_sign}{metrics['profit_percent']}%"),
+        ("Profit", f"{metrics['profit_percent']}%"),
         ("Peak Profit", f"{metrics['peak_profit_percent']}%"),
         ("Pullback", f"{metrics['pullback_from_peak']}%"),
         ("Safe SL", f"Rs {stop_loss}"),
@@ -940,43 +927,48 @@ def check_time_based_exit(trade: dict, current_price: float) -> tuple[bool, str]
     peak_profit = ((highest_price - entry_price) / entry_price) * 100 if entry_price else 0
     trade["peak_profit_percent"] = round(peak_profit, 2)
 
-    # 1. Dynamic Momentum Stall Exit (e.g. 10m - 12m):
-    # Pure Option Buyers cannot hold stagnant positions: exit before theta decay bleeds capital
-    stall_minutes = float(getattr(config, "DYNAMIC_STALL_MINUTES", 12) or 12)
+    # v5 Smart Structure Hold Exemption:
+    # When live 5m/10m/15m chart structure & option support are intact and trade is not breaking down,
+    # do NOT force-exit on a blind 10m or 20m timer. Hold as long as market structure supports the trade!
+    if (
+        getattr(config, "LIVE_STRUCTURE_HOLD_EXEMPTION_ENABLED", True)
+        and trade.get("live_chart_trend_intact") is True
+        and not trade.get("live_structure_reversal", False)
+        and profit_percent >= -3.0
+    ):
+        return False, ""
+
+    # 1. Dynamic Momentum Stall Exit (e.g. 10m):
+    # If trade has zero forward momentum progress after stall minutes, exit before theta decay bleeds capital
+    stall_minutes = float(getattr(config, "DYNAMIC_STALL_MINUTES", 10) or 10)
     if getattr(config, "DYNAMIC_MOMENTUM_EXIT_ENABLED", True) and opened_minutes >= stall_minutes:
         min_peak = float(getattr(config, "DYNAMIC_STALL_MIN_PEAK_PROFIT_PERCENT", 2.5) or 2.5)
         max_profit = float(getattr(config, "DYNAMIC_STALL_MAX_PROFIT_PERCENT", 0.5) or 0.5)
         if peak_profit < min_peak and profit_percent <= max_profit:
             reason = (
-                f"Momentum stall exit (Theta defense): Trade held for {round(opened_minutes, 1)}m with zero momentum "
+                f"Momentum stall exit: Trade held for {round(opened_minutes, 1)}m with zero progress "
                 f"(peak profit {round(peak_profit, 2)}% < +{min_peak}%, current {round(profit_percent, 2)}%). "
-                f"Exiting to preserve option capital from time decay."
+                f"Exiting before theta decay destroys capital."
             )
             return True, reason
 
-    # 2. Maximum Time Limit (e.g. 20m):
+    # 2. Active Breakout Surge Exemption:
+    # If price is within DYNAMIC_BREAKOUT_EXEMPTION_PERCENT of highest price and expanding, do not exit!
+    exemption_ratio = float(getattr(config, "DYNAMIC_BREAKOUT_EXEMPTION_PERCENT", 0.8) or 0.8) / 100
+    is_active_breakout = (current_price >= highest_price * (1 - exemption_ratio)) and profit_percent > 2.0
+
+    # 3. Maximum Time Limit (e.g. 20m):
     minutes_limit = float(getattr(config, "TIME_BASED_EXIT_MINUTES", 20) or 20)
     if minutes_limit > 0 and opened_minutes >= minutes_limit:
-        exemption_ratio = float(getattr(config, "DYNAMIC_BREAKOUT_EXEMPTION_PERCENT", 0.8) or 0.8) / 100
-        is_active_breakout = (current_price >= highest_price * (1 - exemption_ratio)) and profit_percent > 2.0
-        if not is_active_breakout:
-            min_profit = float(getattr(config, "TIME_BASED_EXIT_MIN_PROFIT_PERCENT", 3.5) or 3.5)
-            if profit_percent < min_profit:
-                reason = (
-                    f"Theta/Time exit: Trade held for {round(opened_minutes, 1)}m (>={minutes_limit}m) "
-                    f"with stagnant momentum (profit {round(profit_percent, 2)}% < +{min_profit}%)."
-                )
-                return True, reason
-
-    # 3. Smart Structure Hold Exemption:
-    # When live 5m/10m/15m chart structure is intact and trade is healthy, hold as long as momentum is active
-    if (
-        getattr(config, "LIVE_STRUCTURE_HOLD_EXEMPTION_ENABLED", True)
-        and trade.get("live_chart_trend_intact") is True
-        and not trade.get("live_structure_reversal", False)
-        and profit_percent >= -2.0
-    ):
-        return False, ""
+        if is_active_breakout:
+            return False, ""
+        min_profit = float(getattr(config, "TIME_BASED_EXIT_MIN_PROFIT_PERCENT", 4.0) or 4.0)
+        if profit_percent < min_profit:
+            reason = (
+                f"Trade held for {round(opened_minutes, 1)}m (>={minutes_limit}m) "
+                f"with insufficient momentum (profit {round(profit_percent, 2)}% < +{min_profit}%)."
+            )
+            return True, reason
 
     return False, ""
 
@@ -1510,21 +1502,10 @@ def monitor_open_trade(fyers, trade: dict | None = None) -> dict | None:
     target_stage = int(trade.get("target_stage") or 0)
     remaining_quantity = int(trade.get("remaining_quantity") or trade.get("quantity") or 0)
     profit_percent = round(((current_price - entry_price) / entry_price) * 100, 2) if entry_price else 0
-    unrealized_pnl = round((current_price - entry_price) * remaining_quantity, 2)
-    booked_pnl = float(trade.get("partial_realized_pnl") or 0)
-    live_pnl = round(unrealized_pnl + booked_pnl, 2)
-    pnl_sign = "+" if live_pnl > 0 else ""
-    pct_sign = "+" if profit_percent > 0 else ""
-
-    trade["current_price"] = round(current_price, 2)
-    trade["profit_percent"] = profit_percent
-    trade["unrealized_pnl"] = unrealized_pnl
-    trade["live_pnl"] = live_pnl
-
     ride_mode = "FULL_RIDE_SHADOW" if trade.get("full_position_ride_active") else "PARTIAL_HYBRID"
     exit_decision_reason = (
         f"HOLD ({ride_mode}): current Rs {current_price}, final target Rs {target}, current SL Rs {stop_loss}, "
-        f"stage {target_stage}, profit {pct_sign}{profit_percent}%, Live P&L Rs {pnl_sign}{live_pnl}, remaining qty {remaining_quantity}."
+        f"stage {target_stage}, profit {profit_percent}%, remaining qty {remaining_quantity}."
     )
 
     table("OPEN TRADE MONITOR", [
@@ -1539,9 +1520,8 @@ def monitor_open_trade(fyers, trade: dict | None = None) -> dict | None:
         ("Lots", trade.get("lots", "N/A")),
         ("Quantity", trade.get("quantity")),
         ("Remaining Qty", remaining_quantity),
-        ("Current LTP", f"Rs {current_price}"),
-        ("Live P&L", f"Rs {pnl_sign}{live_pnl} ({pct_sign}{profit_percent}%)"),
-        ("Booked P&L", f"Rs {booked_pnl}"),
+        ("Booked P&L", f"Rs {trade.get('partial_realized_pnl', 0)}"),
+        ("Current", f"Rs {current_price}"),
         ("Target 1", f"Rs {target_1}" if target_1 else "N/A"),
         ("Target 2", f"Rs {target_2}" if target_2 else "N/A"),
         ("Final Target", f"Rs {target}"),

@@ -416,59 +416,6 @@
     .profit { color: var(--buy); font-weight: 760; }
     .loss { color: var(--sell); font-weight: 760; }
     .neutral { color: var(--muted); font-weight: 700; }
-    .profit-text { color: var(--buy) !important; font-weight: 760; }
-    .loss-text { color: var(--sell) !important; font-weight: 760; }
-    .neutral-text { color: var(--muted) !important; font-weight: 700; }
-
-    .open-pnl-card {
-      border-radius: 8px;
-      padding: 13px 16px;
-      margin-bottom: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-    }
-    .open-pnl-card.profit {
-      background: #f0fdf4;
-      border: 1.5px solid #86efac;
-      color: #15803d;
-    }
-    .open-pnl-card.loss {
-      background: #fef2f2;
-      border: 1.5px solid #fca5a5;
-      color: #b91c1c;
-    }
-    .open-pnl-card.neutral {
-      background: #f8fafc;
-      border: 1.5px solid #e2e8f0;
-      color: #475569;
-    }
-    .open-pnl-label {
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      opacity: 0.9;
-    }
-    .open-pnl-value {
-      font-size: 26px;
-      font-weight: 850;
-      line-height: 1.1;
-      font-variant-numeric: tabular-nums;
-    }
-    .open-pnl-percent {
-      font-size: 17px;
-      font-weight: 750;
-      margin-left: 6px;
-    }
-    .open-pnl-sub {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 4px;
-    }
-    .open-pnl-sub strong {
-      color: var(--text);
-    }
     .TARGET_HIT, .TARGET_3_HIT {
       color: var(--buy);
       background: #ecfdf3;
@@ -822,8 +769,6 @@
       <div class="updated" id="dbStatus">DB: checking...</div>
       <button id="todayViewBtn" class="active">Today</button>
       <button id="historyViewBtn">History</button>
-      <a href="/logs" class="nav-logs-btn" style="display:inline-flex; align-items:center; gap:5px; text-decoration:none; padding:7px 12px; font-size:12px; font-weight:700; border-radius:8px; background:rgba(36, 87, 197, 0.08); color:var(--accent); border:1px solid rgba(36, 87, 197, 0.3); transition:all 0.2s ease;">📜 Live Logs</a>
-      <button id="resetDataBtn" class="logout-button" style="border-color:#fecaca; color:#b42318; background:#fff1f2; font-size:12px; font-weight:700; padding:7px 11px; cursor:pointer;" title="Delete all trade history and reset to 0">🗑️ Clear Data</button>
       <div class="updated" id="updated">Loading...</div>
     </div>
   </header>
@@ -854,7 +799,6 @@
         <div class="card">
           <div class="label">Today Net P&amp;L</div>
           <div class="value" id="todayPnl">Rs 0</div>
-          <div class="subhead" id="todayLivePnlSubhead" style="font-size:11px; font-weight:700; margin-top:4px;"></div>
         </div>
         <div class="card">
           <div class="label">Final Amount</div>
@@ -1318,23 +1262,6 @@
         const stage = Number(trade.target_stage || 0);
         const orderStatus = trade.order_status || trade.status || "-";
         const orderType = trade.entry_order_type || "PAPER";
-        const entryPrice = Number(trade.entry_price || 0);
-        const currentPrice = Number(trade.current_price || trade.last_monitor_price || entryPrice);
-        const remainingQty = Number(trade.remaining_quantity || trade.quantity || 0);
-        const bookedPnl = Number(trade.partial_realized_pnl || 0);
-        const unrealizedPnl = trade.unrealized_pnl !== undefined
-          ? Number(trade.unrealized_pnl)
-          : (entryPrice > 0 ? (currentPrice - entryPrice) * remainingQty : 0);
-        const totalLivePnl = trade.live_pnl !== undefined
-          ? Number(trade.live_pnl)
-          : (unrealizedPnl + bookedPnl);
-        const profitPercent = trade.profit_percent !== undefined
-          ? Number(trade.profit_percent)
-          : (entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0);
-
-        const pnlStatus = totalLivePnl > 0 ? "profit" : (totalLivePnl < 0 ? "loss" : "neutral");
-        const pnlSign = totalLivePnl > 0 ? "+" : "";
-        const pctSign = profitPercent > 0 ? "+" : "";
         return `
           <div class="open-trade-panel">
             <div class="open-header">
@@ -1349,22 +1276,10 @@
               </div>
             </div>
 
-            <div class="open-pnl-card ${pnlStatus}">
-              <div class="open-pnl-label">Live Running P&amp;L</div>
-              <div class="open-pnl-value">${pnlSign}${money(totalLivePnl)} <span class="open-pnl-percent">(${pctSign}${profitPercent.toFixed(2)}%)</span></div>
-              <div class="open-pnl-sub">
-                Current LTP: <strong class="${currentPrice > entryPrice ? 'profit-text' : (currentPrice < entryPrice ? 'loss-text' : '')}">${money(currentPrice)}</strong> · 
-                Buy Price: <strong>${money(entryPrice)}</strong> · 
-                Unrealized: <strong class="${unrealizedPnl > 0 ? 'profit-text' : (unrealizedPnl < 0 ? 'loss-text' : '')}">${unrealizedPnl > 0 ? '+' : ''}${money(unrealizedPnl)}</strong>
-                ${bookedPnl ? ` · Booked: <strong>${money(bookedPnl)}</strong>` : ''}
-              </div>
-            </div>
-
             <div class="open-sections">
               <div class="open-section">
                 <div class="open-section-title">Price and Targets</div>
-                <div class="open-metrics primary" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));">
-                  <div class="metric key ${currentPrice > entryPrice ? 'stage-hit' : (currentPrice < entryPrice ? 'current-risk' : '')}"><span>Current LTP</span><strong class="${currentPrice > entryPrice ? 'profit-text' : (currentPrice < entryPrice ? 'loss-text' : '')}">${money(currentPrice)}</strong></div>
+                <div class="open-metrics primary">
                   <div class="metric key"><span>Buy Price</span><strong>${money(trade.entry_price)}</strong></div>
                   <div class="metric key current-risk"><span>Current SL</span><strong>${money(trade.stop_loss)}</strong></div>
                   <div class="metric key ${stage >= 1 ? "stage-hit" : ""}"><span>T1</span><strong>${money(trade.target_1)}</strong></div>
@@ -1384,11 +1299,10 @@
 
               <div class="open-section">
                 <div class="open-section-title">Order and Amount</div>
-                <div class="open-metrics" style="grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));">
+                <div class="open-metrics">
                   <div class="metric"><span>Lots</span><strong>${trade.lots ?? "-"}</strong></div>
                   <div class="metric"><span>Qty</span><strong>${plainNumber(trade.quantity)}</strong></div>
                   <div class="metric"><span>Remaining</span><strong>${plainNumber(trade.remaining_quantity || trade.quantity)}</strong></div>
-                  <div class="metric ${totalLivePnl > 0 ? 'stage-hit' : (totalLivePnl < 0 ? 'current-risk' : '')}"><span>Live P/L</span><strong class="${totalLivePnl > 0 ? 'profit-text' : (totalLivePnl < 0 ? 'loss-text' : 'neutral-text')}">${pnlSign}${money(totalLivePnl)}</strong></div>
                   <div class="metric"><span>Booked P/L</span><strong>${money(trade.partial_realized_pnl)}</strong></div>
                   <div class="metric"><span>Amount</span><strong>${money(trade.estimated_required_amount)}</strong></div>
                   <div class="metric"><span>Limit Price</span><strong>${money(trade.entry_order_price)}</strong></div>
@@ -1520,15 +1434,10 @@
           return trade.option_symbol && row.option_symbol === trade.option_symbol && row.trade_status !== "CLOSED";
         });
 
-        const livePnl = trade.live_pnl !== undefined ? trade.live_pnl : (trade.unrealized_pnl !== undefined ? trade.unrealized_pnl : 0);
         const updates = {
           status: trade.status,
           result: trade.status,
           trade_status: "OPEN",
-          current_price: trade.current_price,
-          profit_percent: trade.profit_percent,
-          pnl: livePnl,
-          gross_pnl: trade.unrealized_pnl || 0,
           stop_loss: trade.stop_loss,
           target_1: trade.target_1,
           target_2: trade.target_2,
@@ -1547,7 +1456,7 @@
         if (match) {
           Object.assign(match, updates);
         } else {
-          updatedRows.push({ ...trade, ...updates, exit_time: "", pnl: livePnl });
+          updatedRows.push({ ...trade, ...updates, exit_time: "", pnl: "" });
         }
       });
 
@@ -1587,40 +1496,13 @@
       const finalText = fundStale && activeMode !== "PAPER" ? "Fyers login needed" : money(data.active_account.final_amount);
       today.combined_trades = mergeOpenTradesIntoRows(today.combined_trades, data.open_trades || data.open_trade);
 
-      const openTradesList = (Array.isArray(data.open_trades) ? data.open_trades : (data.open_trade ? [data.open_trade] : [])).filter(t => t && t.status !== "CLOSED");
-      let openUnrealized = 0;
-      if (openTradesList.length > 0) {
-        openUnrealized = openTradesList.reduce((acc, t) => acc + Number(t.live_pnl !== undefined ? t.live_pnl : (t.unrealized_pnl || 0)), 0);
-      }
-      const combinedTodayPnl = Number(data.active_account.live_today_pnl !== undefined ? data.active_account.live_today_pnl : (todayPnl + openUnrealized));
-
       setText("accountName", accountName);
       setText("accountLine", `Account: ${accountName}${accountId && accountId !== accountName ? ` (${accountId})` : ""}`);
       setText("todayFund", fundText);
       setText("todayClosed", today.performance.closed_trades);
       setText("todayWinRate", `${today.performance.win_rate}%`);
       setText("todayCharges", money(todayCharges));
-
-      const todayPnlEl = document.getElementById("todayPnl");
-      if (todayPnlEl) {
-        todayPnlEl.textContent = (combinedTodayPnl > 0 ? "+" : "") + money(combinedTodayPnl);
-        todayPnlEl.className = "value " + (combinedTodayPnl > 0 ? "profit-text" : (combinedTodayPnl < 0 ? "loss-text" : "neutral-text"));
-      }
-
-      const liveSubEl = document.getElementById("todayLivePnlSubhead");
-      if (liveSubEl) {
-        if (openTradesList.length > 0) {
-          const ot = openTradesList[0];
-          const otPnl = Number(ot.live_pnl !== undefined ? ot.live_pnl : (ot.unrealized_pnl || 0));
-          const otPct = Number(ot.profit_percent || 0);
-          const sign = otPnl > 0 ? "+" : "";
-          const cls = otPnl > 0 ? "profit-text" : (otPnl < 0 ? "loss-text" : "neutral-text");
-          liveSubEl.innerHTML = `<span class="${cls}">● Open Trade Live P/L: ${sign}${money(otPnl)} (${sign}${otPct.toFixed(2)}%)</span>`;
-        } else {
-          liveSubEl.innerHTML = `<span style="color:var(--muted); font-size:11px;">Booked: ${money(todayPnl)}</span>`;
-        }
-      }
-
+      setText("todayPnl", money(todayPnl));
       setText("todayFinal", finalText);
       setText("mode", activeMode);
       renderModeSwitch(data.config);
@@ -1630,12 +1512,7 @@
       setText("allClosed", data.performance.closed_trades);
       setText("allWinRate", `${data.performance.win_rate}%`);
       setText("allCharges", money(allCharges));
-
-      const allPnlEl = document.getElementById("allPnl");
-      if (allPnlEl) {
-        allPnlEl.textContent = (allPnl > 0 ? "+" : "") + money(allPnl);
-        allPnlEl.className = "value " + (allPnl > 0 ? "profit-text" : (allPnl < 0 ? "loss-text" : "neutral-text"));
-      }
+      setText("allPnl", money(data.performance.total_pnl));
       setText("allFinal", fundStale && activeMode !== "PAPER" ? "Fyers login needed" : money(allFinal));
       setText("allSuccess", data.performance.success);
       setText("profitFactor", data.performance.profit_factor ?? 0);
@@ -1675,16 +1552,8 @@
     async function loadDashboard() {
       try {
         const response = await fetch("/api/dashboard", { cache: "no-store" });
-        if (response.status === 401) {
-          window.location.href = "/login";
-          return;
-        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
-        if (data.authenticated === false) {
-          window.location.href = "/login";
-          return;
-        }
         renderDashboard(data);
       } catch (error) {
         const updatedElem = document.getElementById("updated");
@@ -1768,38 +1637,15 @@
         });
         const result = await res.json();
         if (result.ok) {
-          window.location.href = result.login_url || "/login?logged_out=true";
+          alert("Logged out from Fyers successfully. Redirecting to login page...");
+          window.location.href = result.login_url || "/fyers/login";
         } else {
           alert("Logout failed: " + (result.error || "Unknown error"));
         }
       } catch (e) {
-        window.location.href = "/login?logged_out=true";
+        alert("Logout error: " + e);
       }
     });
-
-    const resetDataBtn = document.getElementById("resetDataBtn");
-    if (resetDataBtn) {
-      resetDataBtn.addEventListener("click", async () => {
-        if (!confirm("Are you sure you want to delete all trades and start fresh with an empty database?")) return;
-        resetDataBtn.disabled = true;
-        resetDataBtn.textContent = "Clearing...";
-        try {
-          const res = await fetch("/api/reset-data", { method: "POST" });
-          const result = await res.json();
-          if (result.ok) {
-            alert("All database records and trades cleared successfully!");
-            await loadDashboard();
-          } else {
-            alert("Failed to clear data: " + (result.error || "Unknown error"));
-          }
-        } catch (err) {
-          alert("Error resetting data: " + err);
-        } finally {
-          resetDataBtn.disabled = false;
-          resetDataBtn.textContent = "🗑️ Clear Data";
-        }
-      });
-    }
 
     document.getElementById("todayHistoryBtn").addEventListener("click", () => {
       todayTab = "history";

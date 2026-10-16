@@ -20,8 +20,6 @@ class MarketContextTests(unittest.TestCase):
         self._reduce_on_mixed = config.MARKET_CONTEXT_REDUCE_SIZE_ON_MIXED
         self._single_index_size = config.SINGLE_INDEX_TRADE_SIZE_PERCENT
         self._vix_block_on_iv_crush = getattr(config, "VIX_BLOCK_ON_IV_CRUSH", False)
-        self._aggressive_ignore_soft_blocks = getattr(config, "AGGRESSIVE_IGNORE_SOFT_BLOCKS", False)
-        config.AGGRESSIVE_IGNORE_SOFT_BLOCKS = False
 
     def tearDown(self):
         config.MARKET_CONTEXT_BLOCK_HIGH_RISK = self._block_high_risk
@@ -29,7 +27,6 @@ class MarketContextTests(unittest.TestCase):
         config.MARKET_CONTEXT_REDUCE_SIZE_ON_MIXED = self._reduce_on_mixed
         config.SINGLE_INDEX_TRADE_SIZE_PERCENT = self._single_index_size
         config.VIX_BLOCK_ON_IV_CRUSH = self._vix_block_on_iv_crush
-        config.AGGRESSIVE_IGNORE_SOFT_BLOCKS = self._aggressive_ignore_soft_blocks
 
     def test_quote_change_percent_uses_previous_close(self):
         quote = {"last_price": 105, "ohlc": {"close": 100}}

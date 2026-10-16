@@ -199,7 +199,7 @@ def select_index_option(
             selected = sorted(matches, key=lambda item: _as_date(item["expiry"]))[0]
 
     if not selected:
-        return None
+        raise RuntimeError(f"No {index_symbol} {strike} {option_type} contract found.")
 
     trading_symbol = selected["tradingsymbol"]
     quote_key = trading_symbol if trading_symbol.startswith(("NSE:", "BSE:")) else f"{selected['exchange']}:{trading_symbol}"

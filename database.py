@@ -324,6 +324,11 @@ def init_database() -> None:
             mongo_db[c_logs].create_index([("event_time", -1)])
             mongo_db[c_metrics].create_index([("date", 1)], unique=True)
             mongo_db[c_config].create_index([("key", 1)], unique=True)
+
+            if mongo_db[c_trades].count_documents({}) == 0:
+                _migrate_sqlite_to_mongo(mongo_db)
+                if mongo_db[c_trades].count_documents({}) == 0:
+                    db_import_csv_trades()
             return
         except Exception as e:
             print(f"[MongoDB Init Error] {e}")
@@ -862,85 +867,6 @@ def db_delete_config(key: str) -> None:
         print(f"[DB Config Error] Failed to delete {key}: {e}")
     finally:
         conn.close()
-
-
-def db_reset_all_data(preserve_config: bool = True) -> dict:
-    """Clear all trades, decisions, logs, metrics from MongoDB, SQLite, and local disk."""
-    import shutil
-    cleared = {"mongo": {}, "sqlite": [], "files_removed": []}
-    mongo_db = get_mongo_db()
-    if mongo_db is not None:
-        collections = ["trades", "signal_decisions", "system_logs", "daily_metrics"]
-        prefix = get_table_prefix()
-        for base in collections:
-            col_name = f"{prefix}{base}"
-            try:
-                res = mongo_db[col_name].delete_many({})
-                cleared["mongo"][col_name] = res.deleted_count
-            except Exception as e:
-                cleared["mongo"][col_name] = str(e)
-
-        for base in collections:
-            staging_col = f"staging_{base}"
-            if staging_col in mongo_db.list_collection_names():
-                try:
-                    res = mongo_db[staging_col].delete_many({})
-                    cleared["mongo"][staging_col] = res.deleted_count
-                except Exception:
-                    pass
-
-        if not preserve_config:
-            try:
-                mongo_db[_collection("app_config")].delete_many({})
-            except Exception:
-                pass
-
-    for db_file in Path(".").glob("*.db"):
-        try:
-            conn = sqlite3.connect(str(db_file))
-            cur = conn.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = [t[0] for t in cur.fetchall() if not t[0].startswith("sqlite_") and t[0] != "app_config"]
-            for t in tables:
-                cur.execute(f"DELETE FROM {t}")
-            conn.commit()
-            conn.close()
-            cleared["sqlite"].append(db_file.name)
-        except Exception:
-            pass
-
-    logs_dir = Path("logs")
-    if logs_dir.exists():
-        for csv_file in logs_dir.glob("*.csv"):
-            try:
-                csv_file.unlink()
-                cleared["files_removed"].append(csv_file.name)
-            except Exception:
-                pass
-
-        for j_file in logs_dir.glob("*open_trade*.json"):
-            try:
-                j_file.unlink()
-                cleared["files_removed"].append(j_file.name)
-            except Exception:
-                pass
-
-        by_date_dir = logs_dir / "by_date"
-        if by_date_dir.exists():
-            for d in by_date_dir.iterdir():
-                if d.is_dir():
-                    shutil.rmtree(d, ignore_errors=True)
-                    cleared["files_removed"].append(f"by_date/{d.name}")
-
-    acc_file = Path("paper_account.json")
-    if acc_file.exists():
-        try:
-            acc_file.unlink()
-            cleared["files_removed"].append("paper_account.json")
-        except Exception:
-            pass
-
-    return cleared
 
 
 # Auto-initialize database schema / indexes on import

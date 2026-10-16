@@ -3,8 +3,6 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 from requests.exceptions import ConnectionError, Timeout
-from log_capture import init_log_capture
-init_log_capture()
 from account_status import save_account_status
 from analysis_snapshot import save_analysis_snapshot
 from dashboard import start_dashboard_background
@@ -1340,19 +1338,6 @@ def analyze_once(fyers, balance, allow_fresh_analysis: bool = True):
 
 
 def run_bot():
-    reset_flag = Path("RESET_ON_DEPLOY")
-    if reset_flag.exists():
-        try:
-            from database import db_reset_all_data
-            db_reset_all_data(preserve_config=True)
-            try:
-                reset_flag.unlink()
-            except Exception:
-                pass
-            print("[DEPLOY] Successfully wiped all database records and disk caches on deploy!")
-        except Exception as e:
-            print(f"[DEPLOY ERROR] {e}")
-
     log("Starting Trading Bot...")
     print("=" * 40)
     dashboard_url = None
@@ -1437,19 +1422,13 @@ def run_bot():
         except Exception as error:
             import traceback
             tb = traceback.format_exc()
-            err_msg = str(error).lower()
-            is_rate_limit = "-360" in err_msg or "rate limit" in err_msg or "limit of 50" in err_msg
-            backoff_sleep = 30 if is_rate_limit else 15
-            if is_rate_limit:
-                log(f"[Fyers Rate Limit Notice] 50 requests/min limit reached. Cooling down for {backoff_sleep}s to let API quota reset...")
-            else:
-                log(f"Unexpected error in cycle: {error}\n{tb}")
+            log(f"Unexpected error in cycle: {error}\n{tb}")
             try:
                 from database import db_log_event
-                db_log_event("WARNING" if is_rate_limit else "CRITICAL", "main_loop", str(error), {"traceback": tb})
+                db_log_event("CRITICAL", "main_loop", str(error), {"traceback": tb})
             except Exception:
                 pass
-            time.sleep(backoff_sleep)
+            time.sleep(10)
 
 if __name__ == "__main__":
     run_bot()

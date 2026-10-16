@@ -39,35 +39,24 @@ def _csv_pnl_and_charges() -> tuple[float, float, float]:
 
 
 def realized_pnl() -> float:
+    csv_net, _, _ = _csv_pnl_and_charges()
+    if HISTORY_FILE.exists() and csv_net != 0.0:
+        return csv_net
+
     try:
-        from database import db_get_pnl_summary, is_mongo
-        if is_mongo():
-            mode = getattr(config, "TRADING_MODE", "PAPER")
-            return float(db_get_pnl_summary("PAPER" if mode in {"", "PAPER"} else mode))
+        from database import db_get_pnl_summary, get_bot_env
+        mode = getattr(config, "TRADING_MODE", "PAPER")
+        db_pnl = db_get_pnl_summary("PAPER" if mode in {"", "PAPER"} else mode)
+        if db_pnl != 0.0 or get_bot_env() != "main":
+            return db_pnl
     except Exception:
         pass
 
-    csv_net, _, _ = _csv_pnl_and_charges()
     return csv_net
 
 
 def build_paper_account() -> dict:
     initial = starting_balance()
-    try:
-        from database import db_get_pnl_summary, is_mongo
-        if is_mongo():
-            pnl = realized_pnl()
-            return {
-                "updated_at": csv_datetime(),
-                "starting_balance": round(initial, 2),
-                "gross_realized_pnl": pnl,
-                "total_charges": 0.0,
-                "realized_pnl": pnl,
-                "available_balance": round(initial + pnl, 2),
-            }
-    except Exception:
-        pass
-
     csv_net, csv_gross, csv_charges = _csv_pnl_and_charges()
     pnl = realized_pnl()
     return {
