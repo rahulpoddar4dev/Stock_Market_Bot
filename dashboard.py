@@ -64,19 +64,18 @@ def read_json(path: Path):
 
 
 def list_trade_days() -> list[str]:
+    try:
+        from database import db_get_distinct_dates, is_mongo
+        if is_mongo():
+            return sorted([str(d) for d in db_get_distinct_dates() if d], reverse=True)
+    except Exception:
+        pass
     days = set()
     by_date_dir = LOG_DIR / "by_date"
     if by_date_dir.exists():
         for path in by_date_dir.iterdir():
             if path.is_dir():
                 days.add(path.name)
-    try:
-        from database import db_get_distinct_dates
-        for d in db_get_distinct_dates():
-            if d:
-                days.add(str(d))
-    except Exception:
-        pass
     return sorted(list(days), reverse=True)
 
 
@@ -772,18 +771,12 @@ def merge_open_trade_updates(combined_rows: list[dict], open_trades: list[dict])
 
 
 def read_day_data(day: str, mode: str | None = None) -> dict:
-    day_dir = LOG_DIR / "by_date" / day
-    trade_history = read_csv(day_dir / "trade_history.csv", limit=300)
-    paper_trades = read_csv(day_dir / "paper_option_trades.csv", limit=300)
-    no_trade_decisions = read_csv(day_dir / "no_trade_decisions.csv", limit=300)
-    ghost_trades = read_csv(day_dir / "ghost_trades.csv", limit=300)
-
     try:
-        from database import db_get_trades_for_date, db_get_decisions_for_date
-        db_trades = db_get_trades_for_date(day, mode)
-        if not trade_history and db_trades:
+        from database import db_get_trades_for_date, db_get_decisions_for_date, is_mongo
+        if is_mongo():
+            db_trades = db_get_trades_for_date(day, mode)
             formatted_trades = []
-            for t in db_trades:
+            for t in (db_trades or []):
                 row = dict(t)
                 row["date"] = t.get("date")
                 row["time"] = t.get("time")
@@ -814,22 +807,41 @@ def read_day_data(day: str, mode: str | None = None) -> dict:
                 row["exit_time"] = str(t.get("closed_at", ""))[-8:] if t.get("closed_at") else ""
                 row["mode"] = t.get("mode")
                 formatted_trades.append(row)
-            trade_history = formatted_trades
-            if not paper_trades and mode in {"PAPER", None}:
-                paper_trades = formatted_trades
 
-        if not no_trade_decisions:
+            trade_history = formatted_trades
+            paper_trades = formatted_trades if mode in {"PAPER", None} else []
+
             db_decisions = db_get_decisions_for_date(day)
-            if db_decisions:
-                formatted_decisions = []
-                for d in db_decisions:
-                    d_row = dict(d)
-                    d_row["reason"] = d.get("blocked_reason")
-                    d_row["final_score"] = d.get("setup_score")
-                    formatted_decisions.append(d_row)
-                no_trade_decisions = formatted_decisions
+            formatted_decisions = []
+            for d in (db_decisions or []):
+                d_row = dict(d)
+                d_row["reason"] = d.get("blocked_reason")
+                d_row["final_score"] = d.get("setup_score")
+                formatted_decisions.append(d_row)
+            no_trade_decisions = formatted_decisions
+
+            paper_trades = enrich_rows(paper_trades)
+            trade_history = enrich_rows(trade_history, paper_trades)
+            if mode:
+                trade_history = filter_rows_for_mode(trade_history, mode)
+                paper_trades = filter_rows_for_mode(paper_trades, mode)
+            return {
+                "day": day,
+                "performance": calculate_performance(trade_history),
+                "trade_history": trade_history,
+                "combined_trades": combine_trade_rows(trade_history),
+                "paper_trades": paper_trades,
+                "no_trade_decisions": no_trade_decisions,
+                "ghost_trades": [],
+            }
     except Exception:
         pass
+
+    day_dir = LOG_DIR / "by_date" / day
+    trade_history = read_csv(day_dir / "trade_history.csv", limit=300)
+    paper_trades = read_csv(day_dir / "paper_option_trades.csv", limit=300)
+    no_trade_decisions = read_csv(day_dir / "no_trade_decisions.csv", limit=300)
+    ghost_trades = read_csv(day_dir / "ghost_trades.csv", limit=300)
 
     paper_trades = enrich_rows(paper_trades)
     trade_history = enrich_rows(trade_history, paper_trades)
@@ -851,14 +863,6 @@ def build_dashboard_data() -> dict:
     apply_runtime_settings(config)
     active_mode = config.TRADING_MODE
     today = today_date().isoformat()
-    trade_history = read_csv(LOG_DIR / "trade_history.csv", limit=200)
-    paper_trades = read_csv(LOG_DIR / "paper_option_trades.csv", limit=200)
-    no_trade_decisions = read_csv(LOG_DIR / "no_trade_decisions.csv", limit=200)
-    ghost_trades = read_csv(LOG_DIR / "ghost_trades.csv", limit=200)
-    paper_trades = enrich_rows(paper_trades)
-    trade_history = enrich_rows(trade_history, paper_trades)
-    mode_trade_history = filter_rows_for_mode(trade_history, active_mode)
-    mode_paper_trades = filter_rows_for_mode(paper_trades, active_mode)
     open_state = read_json(OPEN_TRADE_FILE)
     if isinstance(open_state, list):
         open_trades = [trade for trade in open_state if trade.get("status") in {"OPEN", "LIVE_OPEN", "LIVE_PENDING"}]
@@ -880,19 +884,41 @@ def build_dashboard_data() -> dict:
 
     account_status = load_active_account_status(active_mode)
     paper_account = build_paper_account()
-    performance = calculate_performance(mode_trade_history)
 
     today_data = read_day_data(today, active_mode)
     today_data["combined_trades"] = merge_open_trade_updates(today_data["combined_trades"], open_trades)
     active_account = active_account_summary(account_status, paper_account, today_data["performance"], active_mode, open_trades=open_trades)
 
-    if not mode_trade_history and today_data.get("trade_history"):
+    try:
+        from database import is_mongo
+        if is_mongo():
+            mode_trade_history = today_data["trade_history"]
+            mode_paper_trades = today_data["paper_trades"]
+            no_trade_decisions = today_data["no_trade_decisions"]
+            performance = today_data["performance"]
+        else:
+            trade_history = read_csv(LOG_DIR / "trade_history.csv", limit=200)
+            paper_trades = read_csv(LOG_DIR / "paper_option_trades.csv", limit=200)
+            no_trade_decisions = read_csv(LOG_DIR / "no_trade_decisions.csv", limit=200)
+            ghost_trades = read_csv(LOG_DIR / "ghost_trades.csv", limit=200)
+            paper_trades = enrich_rows(paper_trades)
+            trade_history = enrich_rows(trade_history, paper_trades)
+            mode_trade_history = filter_rows_for_mode(trade_history, active_mode)
+            mode_paper_trades = filter_rows_for_mode(paper_trades, active_mode)
+            performance = calculate_performance(mode_trade_history)
+            if not mode_trade_history and today_data.get("trade_history"):
+                mode_trade_history = today_data["trade_history"]
+                performance = today_data["performance"]
+            if not mode_paper_trades and today_data.get("paper_trades"):
+                mode_paper_trades = today_data["paper_trades"]
+            if not no_trade_decisions and today_data.get("no_trade_decisions"):
+                no_trade_decisions = today_data["no_trade_decisions"]
+    except Exception:
         mode_trade_history = today_data["trade_history"]
-        performance = today_data["performance"]
-    if not mode_paper_trades and today_data.get("paper_trades"):
         mode_paper_trades = today_data["paper_trades"]
-    if not no_trade_decisions and today_data.get("no_trade_decisions"):
         no_trade_decisions = today_data["no_trade_decisions"]
+        performance = today_data["performance"]
+    ghost_trades = []
 
     return {
         "config": {
@@ -1116,6 +1142,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_json(read_day_data(day))
             return
 
+        if path in {"/api/reset-data", "/api/reset-database", "/api/clear-data"}:
+            try:
+                from database import db_reset_all_data
+                res = db_reset_all_data(preserve_config=True)
+                self.send_json({"ok": True, "message": "All database records and logs cleared successfully", "details": res})
+            except Exception as e:
+                self.send_json({"ok": False, "error": str(e)}, status=500)
+            return
+
         self.send_json({"error": "Not found"})
 
     def handle_fyers_callback(self, parsed):
@@ -1144,6 +1179,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path in {"/api/reset-data", "/api/reset-database", "/api/clear-data"}:
+            try:
+                from database import db_reset_all_data
+                res = db_reset_all_data(preserve_config=True)
+                self.send_json({"ok": True, "message": "All database records and logs cleared successfully", "details": res})
+            except Exception as error:
+                self.send_json({"ok": False, "error": str(error)}, status=500)
+            return
+
         if parsed.path in {"/api/fyers/submit-token", "/api/submit-token"}:
             length = int(self.headers.get("Content-Length", "0") or 0)
             body = self.rfile.read(length).decode("utf-8") if length else "{}"
@@ -1276,6 +1320,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 def create_dashboard_server():
+    reset_flag = Path("RESET_ON_DEPLOY")
+    if reset_flag.exists():
+        try:
+            from database import db_reset_all_data
+            db_reset_all_data(preserve_config=True)
+            try:
+                reset_flag.unlink()
+            except Exception:
+                pass
+            print("[DEPLOY] Successfully wiped all database records and disk caches on deploy!")
+        except Exception as e:
+            print(f"[DEPLOY ERROR] {e}")
+
     host = config.DASHBOARD_HOST
     server = None
     port = config.DASHBOARD_PORT

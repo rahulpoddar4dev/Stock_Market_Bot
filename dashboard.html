@@ -823,6 +823,7 @@
       <button id="todayViewBtn" class="active">Today</button>
       <button id="historyViewBtn">History</button>
       <a href="/logs" class="nav-logs-btn" style="display:inline-flex; align-items:center; gap:5px; text-decoration:none; padding:7px 12px; font-size:12px; font-weight:700; border-radius:8px; background:rgba(36, 87, 197, 0.08); color:var(--accent); border:1px solid rgba(36, 87, 197, 0.3); transition:all 0.2s ease;">📜 Live Logs</a>
+      <button id="resetDataBtn" class="logout-button" style="border-color:#fecaca; color:#b42318; background:#fff1f2; font-size:12px; font-weight:700; padding:7px 11px; cursor:pointer;" title="Delete all trade history and reset to 0">🗑️ Clear Data</button>
       <div class="updated" id="updated">Loading...</div>
     </div>
   </header>
@@ -1775,6 +1776,30 @@
         window.location.href = "/login?logged_out=true";
       }
     });
+
+    const resetDataBtn = document.getElementById("resetDataBtn");
+    if (resetDataBtn) {
+      resetDataBtn.addEventListener("click", async () => {
+        if (!confirm("Are you sure you want to delete all trades and start fresh with an empty database?")) return;
+        resetDataBtn.disabled = true;
+        resetDataBtn.textContent = "Clearing...";
+        try {
+          const res = await fetch("/api/reset-data", { method: "POST" });
+          const result = await res.json();
+          if (result.ok) {
+            alert("All database records and trades cleared successfully!");
+            await loadDashboard();
+          } else {
+            alert("Failed to clear data: " + (result.error || "Unknown error"));
+          }
+        } catch (err) {
+          alert("Error resetting data: " + err);
+        } finally {
+          resetDataBtn.disabled = false;
+          resetDataBtn.textContent = "🗑️ Clear Data";
+        }
+      });
+    }
 
     document.getElementById("todayHistoryBtn").addEventListener("click", () => {
       todayTab = "history";

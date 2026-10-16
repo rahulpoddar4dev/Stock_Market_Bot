@@ -1340,6 +1340,19 @@ def analyze_once(fyers, balance, allow_fresh_analysis: bool = True):
 
 
 def run_bot():
+    reset_flag = Path("RESET_ON_DEPLOY")
+    if reset_flag.exists():
+        try:
+            from database import db_reset_all_data
+            db_reset_all_data(preserve_config=True)
+            try:
+                reset_flag.unlink()
+            except Exception:
+                pass
+            print("[DEPLOY] Successfully wiped all database records and disk caches on deploy!")
+        except Exception as e:
+            print(f"[DEPLOY ERROR] {e}")
+
     log("Starting Trading Bot...")
     print("=" * 40)
     dashboard_url = None
