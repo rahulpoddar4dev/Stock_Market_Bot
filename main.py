@@ -1424,13 +1424,19 @@ def run_bot():
         except Exception as error:
             import traceback
             tb = traceback.format_exc()
-            log(f"Unexpected error in cycle: {error}\n{tb}")
+            err_msg = str(error).lower()
+            is_rate_limit = "-360" in err_msg or "rate limit" in err_msg or "limit of 50" in err_msg
+            backoff_sleep = 30 if is_rate_limit else 15
+            if is_rate_limit:
+                log(f"[Fyers Rate Limit Notice] 50 requests/min limit reached. Cooling down for {backoff_sleep}s to let API quota reset...")
+            else:
+                log(f"Unexpected error in cycle: {error}\n{tb}")
             try:
                 from database import db_log_event
-                db_log_event("CRITICAL", "main_loop", str(error), {"traceback": tb})
+                db_log_event("WARNING" if is_rate_limit else "CRITICAL", "main_loop", str(error), {"traceback": tb})
             except Exception:
                 pass
-            time.sleep(10)
+            time.sleep(backoff_sleep)
 
 if __name__ == "__main__":
     run_bot()

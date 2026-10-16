@@ -30,9 +30,23 @@ def analyze_option_chain_for_trade(
 
     index_cfg = get_index_config(index_symbol)
     option_type = "CE" if signal == "BUY" else "PE"
-    instruments = _nearest_expiry_candidates(fyers, index_cfg, option_type, spot_price)
+    instruments, oi_context = _fetch_option_chain_and_oi(fyers, index_cfg, option_type, spot_price)
     if not instruments:
-        raise RuntimeError(f"No nearby {index_symbol} {option_type} option contracts found.")
+        # Fallback to direct strike selector if option chain returns no candidate (rate limit, etc)
+        try:
+            from option_selector import select_index_option
+            fallback_trade = select_index_option(fyers, index_symbol, signal, spot_price, strategy_signal)
+            if fallback_trade:
+                return fallback_trade
+        except Exception:
+            pass
+        return {
+            "status": "BLOCKED_OPTION_CHAIN",
+            "quantity": 0,
+            "hard_reject": True,
+            "hard_reject_reason": f"No nearby {index_symbol} {option_type} option contracts found (broker rate limit or unavailable).",
+            "signal_reason": f"Option chain scan could not fetch contracts for {index_symbol} {option_type}.",
+        }
 
     quote_keys = [
         item["tradingsymbol"]
@@ -41,7 +55,6 @@ def analyze_option_chain_for_trade(
         for item in instruments
     ]
     quotes = fyers.quote(quote_keys) if hasattr(fyers, "quote") else {}
-    oi_context = _fetch_nearby_oi_context(fyers, index_cfg, spot_price)
 
     candidates = []
     for instrument in instruments:
@@ -78,7 +91,19 @@ def analyze_option_chain_for_trade(
     return selected
 
 
-def _nearest_expiry_candidates(fyers, index_cfg: dict, option_type: str, spot_price: float) -> list[dict]:
+_OPTION_CHAIN_CACHE: dict[str, tuple[float, list[dict], dict]] = {}
+_OPTION_CHAIN_CACHE_TTL = 45.0
+
+
+def _fetch_option_chain_and_oi(fyers, index_cfg: dict, option_type: str, spot_price: float) -> tuple[list[dict], dict]:
+    import time
+    cache_key = f"{index_cfg['symbol']}:{option_type}"
+    now = time.monotonic()
+    if cache_key in _OPTION_CHAIN_CACHE:
+        cached_at, cached_matches, cached_oi = _OPTION_CHAIN_CACHE[cache_key]
+        if now - cached_at < _OPTION_CHAIN_CACHE_TTL and cached_matches:
+            return cached_matches, cached_oi
+
     today = today_date()
     step = int(index_cfg["strike_step"])
     atm = round_to_nearest_strike(float(spot_price), step)
@@ -87,64 +112,114 @@ def _nearest_expiry_candidates(fyers, index_cfg: dict, option_type: str, spot_pr
 
     # 1. Native Fyers optionchain
     if hasattr(fyers, "optionchain"):
-        try:
-            chain_payload = {
-                "symbol": index_cfg["quote_key"],
-                "strikecount": int(config.OPTION_CHAIN_STRIKES_EACH_SIDE) + 2,
-                "timestamp": "",
-            }
-            res = fyers.optionchain(chain_payload)
-            if isinstance(res, dict) and res.get("s") == "ok":
-                data = res.get("data") or {}
-                chain_list = data.get("optionsChain") or []
-                matches = []
-                for item in chain_list:
-                    strike_val = int(float(item.get("strike_price") or 0))
-                    opt_t = str(item.get("option_type") or "").upper()
-                    if opt_t != option_type or strike_val not in allowed_strikes:
-                        continue
-                    sym = item.get("symbol") or ""
+        for attempt in range(2):
+            try:
+                chain_payload = {
+                    "symbol": index_cfg["quote_key"],
+                    "strikecount": max(int(config.OPTION_CHAIN_STRIKES_EACH_SIDE) + 2, 6),
+                    "timestamp": "",
+                }
+                res = fyers.optionchain(chain_payload)
+                if isinstance(res, dict) and res.get("s") == "ok":
+                    data = res.get("data") or {}
+                    chain_list = data.get("optionsChain") or []
+                    expiry_data = data.get("expiryData") or []
+
+                    expiry_str = today.isoformat()
+                    expiry_date_val = today
+                    if expiry_data and isinstance(expiry_data, list) and expiry_data[0].get("date"):
+                        try:
+                            parsed_exp = datetime.strptime(expiry_data[0]["date"], "%d-%m-%Y").date()
+                            if parsed_exp >= today:
+                                expiry_str = parsed_exp.isoformat()
+                                expiry_date_val = parsed_exp
+                        except Exception:
+                            pass
+
+                    matches = []
+                    all_nearby_oi = []
+                    quotes = {}
                     lot_size = 25 if "NIFTY" in index_cfg["symbol"] else 10
-                    matches.append({
-                        "tradingsymbol": sym,
-                        "exchange": index_cfg["option_exchange"],
-                        "name": index_cfg["option_name"],
-                        "instrument_type": option_type,
-                        "strike": strike_val,
-                        "lot_size": lot_size,
-                        "instrument_token": sym,
-                        "expiry": today.isoformat(),
-                        "expiry_date": today,
-                    })
-                if matches:
-                    return sorted(matches, key=lambda item: float(item.get("strike", 0)))
-        except Exception:
-            pass
+
+                    for item in chain_list:
+                        strike_val = int(float(item.get("strike_price") or 0))
+                        opt_t = str(item.get("option_type") or "").upper()
+                        if strike_val not in allowed_strikes:
+                            continue
+                        sym = item.get("symbol") or ""
+                        if not sym:
+                            continue
+
+                        all_nearby_oi.append({
+                            "tradingsymbol": sym,
+                            "exchange": index_cfg["option_exchange"],
+                            "strike": strike_val,
+                            "instrument_type": opt_t,
+                        })
+                        quotes[sym] = {
+                            "oi": int(float(item.get("oi") or item.get("call_oi" if opt_t == "CE" else "put_oi") or 0)),
+                            "last_price": float(item.get("ltp") or 0),
+                        }
+
+                        if opt_t == option_type:
+                            matches.append({
+                                "tradingsymbol": sym,
+                                "exchange": index_cfg["option_exchange"],
+                                "name": index_cfg["option_name"],
+                                "instrument_type": option_type,
+                                "strike": strike_val,
+                                "lot_size": lot_size,
+                                "instrument_token": sym,
+                                "expiry": expiry_str,
+                                "expiry_date": expiry_date_val,
+                            })
+
+                    oi_context = _build_oi_context(index_cfg, all_nearby_oi, quotes, spot_price)
+                    if matches:
+                        sorted_matches = sorted(matches, key=lambda item: float(item.get("strike", 0)))
+                        _OPTION_CHAIN_CACHE[cache_key] = (now, sorted_matches, oi_context)
+                        return sorted_matches, oi_context
+                elif isinstance(res, dict) and (res.get("code") == -360 or "limit" in str(res.get("message", "")).lower()):
+                    if cache_key in _OPTION_CHAIN_CACHE:
+                        return _OPTION_CHAIN_CACHE[cache_key][1], _OPTION_CHAIN_CACHE[cache_key][2]
+                    time.sleep(1.5)
+                    continue
+            except Exception:
+                pass
 
     # 2. Broker instruments fallback (or mock for unit tests)
     if hasattr(fyers, "instruments"):
-        instruments = fyers.instruments(index_cfg["option_exchange"])
-        matches = []
-        for instrument in instruments:
-            expiry = _as_date(instrument.get("expiry"))
-            if not expiry or expiry < today:
-                continue
-            if instrument.get("name") != index_cfg["option_name"]:
-                continue
-            if instrument.get("instrument_type") != option_type:
-                continue
-            if int(float(instrument.get("strike", 0))) not in allowed_strikes:
-                continue
-            matches.append({**instrument, "expiry_date": expiry})
+        try:
+            instruments = fyers.instruments(index_cfg["option_exchange"])
+            matches = []
+            for instrument in instruments:
+                expiry = _as_date(instrument.get("expiry"))
+                if not expiry or expiry < today:
+                    continue
+                if instrument.get("name") != index_cfg["option_name"]:
+                    continue
+                if instrument.get("instrument_type") != option_type:
+                    continue
+                if int(float(instrument.get("strike", 0))) not in allowed_strikes:
+                    continue
+                matches.append({**instrument, "expiry_date": expiry})
 
-        if matches:
-            nearest_expiry = min(item["expiry_date"] for item in matches)
-            return sorted(
-                [item for item in matches if item["expiry_date"] == nearest_expiry],
-                key=lambda item: float(item.get("strike", 0)),
-            )
+            if matches:
+                nearest_expiry = min(item["expiry_date"] for item in matches)
+                filtered = sorted(
+                    [item for item in matches if item["expiry_date"] == nearest_expiry],
+                    key=lambda item: float(item.get("strike", 0)),
+                )
+                return filtered, {"spot_price": spot_price}
+        except Exception:
+            pass
 
-    return []
+    return [], {"spot_price": spot_price}
+
+
+def _nearest_expiry_candidates(fyers, index_cfg: dict, option_type: str, spot_price: float) -> list[dict]:
+    matches, _ = _fetch_option_chain_and_oi(fyers, index_cfg, option_type, spot_price)
+    return matches
 
 
 def _build_candidate(
@@ -547,75 +622,8 @@ def _build_oi_context(index_cfg: dict, instruments: list[dict], quotes: dict, sp
 
 
 def _fetch_nearby_oi_context(fyers, index_cfg: dict, spot_price: float) -> dict:
-    today = today_date()
-    step = int(index_cfg["strike_step"])
-    atm = round_to_nearest_strike(float(spot_price), step)
-    offsets = range(-int(config.OPTION_CHAIN_STRIKES_EACH_SIDE), int(config.OPTION_CHAIN_STRIKES_EACH_SIDE) + 1)
-    allowed_strikes = {atm + (offset * step) for offset in offsets}
-
-    # 1. Native Fyers optionchain
-    if hasattr(fyers, "optionchain"):
-        try:
-            res = fyers.optionchain({
-                "symbol": index_cfg["quote_key"],
-                "strikecount": int(config.OPTION_CHAIN_STRIKES_EACH_SIDE) + 2,
-                "timestamp": "",
-            })
-            if isinstance(res, dict) and res.get("s") == "ok":
-                data = res.get("data") or {}
-                chain_list = data.get("optionsChain") or []
-                nearby = []
-                quotes = {}
-                for item in chain_list:
-                    strike_val = int(float(item.get("strike_price") or 0))
-                    opt_t = str(item.get("option_type") or "").upper()
-                    if strike_val not in allowed_strikes or opt_t not in {"CE", "PE"}:
-                        continue
-                    sym = item.get("symbol") or ""
-                    nearby.append({
-                        "tradingsymbol": sym,
-                        "exchange": index_cfg["option_exchange"],
-                        "strike": strike_val,
-                        "instrument_type": opt_t,
-                    })
-                    quotes[sym] = {
-                        "oi": int(float(item.get("oi") or item.get("call_oi" if opt_t == "CE" else "put_oi") or 0)),
-                        "last_price": float(item.get("ltp") or 0),
-                    }
-                if nearby:
-                    return _build_oi_context(index_cfg, nearby, quotes, spot_price)
-        except Exception:
-            pass
-
-    # 2. Broker instruments fallback
-    if hasattr(fyers, "instruments"):
-        instruments = fyers.instruments(index_cfg["option_exchange"])
-        nearby = []
-        for instrument in instruments:
-            expiry = _as_date(instrument.get("expiry"))
-            if not expiry or expiry < today:
-                continue
-            if instrument.get("name") != index_cfg["option_name"]:
-                continue
-            if instrument.get("instrument_type") not in {"CE", "PE"}:
-                continue
-            if int(float(instrument.get("strike", 0))) not in allowed_strikes:
-                continue
-            nearby.append({**instrument, "expiry_date": expiry})
-
-        if nearby:
-            nearest_expiry = min(item["expiry_date"] for item in nearby)
-            nearby = [item for item in nearby if item["expiry_date"] == nearest_expiry]
-            quote_keys = [
-                item["tradingsymbol"]
-                if item["tradingsymbol"].startswith(("NSE:", "BSE:"))
-                else f"{item['exchange']}:{item['tradingsymbol']}"
-                for item in nearby
-            ]
-            quotes = fyers.quote(quote_keys) if hasattr(fyers, "quote") else {}
-            return _build_oi_context(index_cfg, nearby, quotes, spot_price)
-
-    return {"spot_price": spot_price}
+    _, oi_context = _fetch_option_chain_and_oi(fyers, index_cfg, "CE", spot_price)
+    return oi_context
 
 
 def _chain_context_reason(signal: str, spot_price: float, oi_context: dict) -> str:
